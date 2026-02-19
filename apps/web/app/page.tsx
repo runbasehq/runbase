@@ -1,10 +1,16 @@
 export default function Page() {
   return (
-    <main className="relative isolate min-h-screen overflow-hidden text-black [font-family:var(--font-faculty-glyphic),var(--font-sans),sans-serif] before:pointer-events-none before:absolute before:inset-0 before:z-0 before:content-[''] before:bg-[linear-gradient(to_bottom,rgba(247,247,243,0.82)_0%,rgba(247,247,243,0.66)_32%,rgba(247,247,243,0.30)_58%,rgba(247,247,243,0.04)_100%)] after:pointer-events-none after:absolute after:-inset-x-1/4 after:-top-[14%] after:bottom-0 after:z-[1] after:content-[''] after:bg-[linear-gradient(-120deg,_#CDFF29_34%,_#FF45C7_79%,_#BF40FF_100%)] after:opacity-90 after:mix-blend-lighten after:[mask-image:linear-gradient(to_top,#000_0%,#000_38%,transparent_69%)] after:[-webkit-mask-image:linear-gradient(to_top,#000_0%,#000_38%,transparent_69%)]">
+    <main className="relative isolate min-h-screen overflow-hidden text-black [font-family:var(--font-faculty-glyphic),var(--font-sans),sans-serif] before:pointer-events-none before:absolute before:inset-0 before:z-0 before:content-[''] before:bg-[linear-gradient(to_bottom,rgba(247,247,243,0.82)_0%,rgba(247,247,243,0.66)_32%,rgba(247,247,243,0.30)_58%,rgba(247,247,243,0.04)_100%]">
       <div aria-hidden className="absolute inset-0 -z-20 bg-[#f3f2ef]" />
       <div aria-hidden className="absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute inset-0 bg-[url('/landing-bg.png')] bg-cover bg-center bg-no-repeat translate-y-[34%]" />
-        <div className="absolute inset-0 bg-[radial-gradient(100%_65%_at_82%_0%,rgba(221,236,183,0.48)_0%,rgba(221,236,183,0)_70%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(100%_65%_at_82%_0%,rgba(223,245,120,0.26)_0%,rgba(223,245,120,0)_72%)]" />
+      </div>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -inset-x-1/4 -top-[14%] bottom-0 z-[1] opacity-90 mix-blend-lighten [mask-image:linear-gradient(to_top,#000_0%,#000_38%,transparent_69%)] [-webkit-mask-image:linear-gradient(to_top,#000_0%,#000_38%,transparent_69%)]"
+      >
+        <div className="landing-gradient-flow h-full w-full bg-[linear-gradient(-120deg,_#CDFF29_24%,_#FF9BE7_46%,_#FF45C7_76%,_#BF40FF_100%)] bg-[length:260%_260%]" />
       </div>
 
       <div className="relative z-10 flex min-h-screen flex-col">

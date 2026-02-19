@@ -125,3 +125,25 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes landing-gradient-flow {
+  0% {
+    background-position: 0% 52%;
+    transform: translate3d(-18%, 0%, 0) scale(1.12) rotate(-2deg);
+  }
+
+  50% {
+    background-position: 100% 48%;
+    transform: translate3d(18%, -4%, 0) scale(1.2) rotate(2deg);
+  }
+
+  100% {
+    background-position: 0% 52%;
+    transform: translate3d(-18%, 0%, 0) scale(1.12) rotate(-2deg);
+  }
+}
+
+.landing-gradient-flow {
+  animation: landing-gradient-flow 9s linear infinite;
+  will-change: transform, background-position;
+}

@@ -9,3 +9,4 @@
 
 - Do not use CSS `clamp()`.
 - Always prioritize Tailwind CSS utility directives/classes for styling.
+- Use `motion/react` for UI entrance/interaction animation.

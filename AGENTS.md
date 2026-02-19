@@ -32,3 +32,4 @@ For `apps/web`, organize domain code under `features/<feature-name>/...`.
 
 - Do not use CSS `clamp()`.
 - Always prioritize Tailwind CSS utility directives/classes for styling.
+- For UI entrance/interaction animation in `apps/web`, use `motion/react`.
