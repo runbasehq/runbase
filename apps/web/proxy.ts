@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { rootDomain } from "@/lib/utils";
+import { protocol, rootDomain } from "@/lib/utils";
 
 function extractSubdomain(request: NextRequest): string | null {
   const url = request.url;
@@ -41,12 +41,30 @@ export function proxy(request: NextRequest) {
 
   if (subdomain) {
     if (pathname.startsWith("/admin")) {
-      return NextResponse.redirect(new URL("/", request.url));
+      return NextResponse.redirect(`${protocol}://${rootDomain}`);
     }
 
-    if (pathname === "/") {
-      return NextResponse.rewrite(new URL(`/s/${subdomain}`, request.url));
+    if (pathname.startsWith("/sign-in") || pathname.startsWith("/onboarding")) {
+      const redirectUrl = new URL(request.url);
+      redirectUrl.hostname = rootDomain.split(":")[0] || redirectUrl.hostname;
+
+      if (rootDomain.includes(":")) {
+        redirectUrl.port = rootDomain.split(":")[1] || redirectUrl.port;
+      } else {
+        redirectUrl.port = "";
+      }
+
+      return NextResponse.redirect(redirectUrl);
     }
+
+    if (pathname.startsWith("/s/")) {
+      return NextResponse.next();
+    }
+
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname =
+      pathname === "/" ? `/s/${subdomain}` : `/s/${subdomain}${pathname}`;
+    return NextResponse.rewrite(rewriteUrl);
   }
 
   return NextResponse.next();

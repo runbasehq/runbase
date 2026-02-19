@@ -23,6 +23,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Runbase Multi-Tenant",
   description: "Subdomain-based multi-tenant demo with Upstash Redis",
+  icons: {
+    icon: "/runbase-mark.svg",
+    shortcut: "/runbase-mark.svg",
+  },
 };
 
 export default function RootLayout({

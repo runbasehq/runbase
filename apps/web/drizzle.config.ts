@@ -4,8 +4,15 @@ import { defineConfig } from "drizzle-kit";
 config({ path: ".env.local" });
 config({ path: ".env" });
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is required for Drizzle");
+const databaseUrl =
+  process.env.DATABASE_URL ??
+  process.env.POSTGRES_URL ??
+  process.env.POSTGRES_PRISMA_URL;
+
+if (!databaseUrl) {
+  throw new Error(
+    "Database URL is required for Drizzle. Set DATABASE_URL or POSTGRES_URL.",
+  );
 }
 
 export default defineConfig({
@@ -13,6 +20,6 @@ export default defineConfig({
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL,
+    url: databaseUrl,
   },
 });

@@ -4,25 +4,48 @@ import { FormEvent, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { authClient } from "@/lib/auth-client";
+import { rootDomain } from "@/lib/utils";
 import { type AuthMode, validateSignInInput } from "~/auth/schemas/sign-in";
 
-function toSafePath(path: string | null): string {
-  if (!path) {
-    return "/admin";
+function toSafeRedirect(target: string | null): string {
+  if (!target) {
+    return "/onboarding";
   }
 
-  if (!path.startsWith("/") || path.startsWith("//")) {
-    return "/admin";
+  if (target.startsWith("/")) {
+    if (target.startsWith("//")) {
+      return "/onboarding";
+    }
+
+    return target;
   }
 
-  return path;
+  try {
+    const parsedUrl = new URL(target);
+    const rootHostname = rootDomain.split(":")[0]?.toLowerCase() || "";
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const isRootDomainHost =
+      hostname === rootHostname || hostname.endsWith(`.${rootHostname}`);
+
+    if (isRootDomainHost) {
+      return parsedUrl.toString();
+    }
+  } catch {
+    return "/onboarding";
+  }
+
+  return "/onboarding";
 }
 
-export function SignIn() {
+function isAbsoluteUrl(path: string) {
+  return path.startsWith("http://") || path.startsWith("https://");
+}
+
+export function SignIn({ githubAuthEnabled }: { githubAuthEnabled: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = useMemo(
-    () => toSafePath(searchParams.get("next")),
+    () => toSafeRedirect(searchParams.get("next")),
     [searchParams],
   );
 
@@ -32,6 +55,7 @@ export function SignIn() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [isGithubPending, setIsGithubPending] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -82,8 +106,28 @@ export function SignIn() {
       }
     }
 
+    if (isAbsoluteUrl(nextPath)) {
+      window.location.assign(nextPath);
+      return;
+    }
+
     router.replace(nextPath);
     router.refresh();
+  }
+
+  async function handleGithubSignIn() {
+    setError(null);
+    setIsGithubPending(true);
+
+    const { error: socialSignInError } = await authClient.signIn.social({
+      provider: "github",
+      callbackURL: nextPath,
+    });
+
+    if (socialSignInError) {
+      setError(socialSignInError.message || "Unable to sign in with GitHub");
+      setIsGithubPending(false);
+    }
   }
 
   return (
@@ -131,7 +175,7 @@ export function SignIn() {
 
       <button
         type="submit"
-        disabled={isPending}
+        disabled={isPending || isGithubPending}
         className="w-full rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-60"
       >
         {isPending
@@ -142,6 +186,17 @@ export function SignIn() {
             ? "Create account"
             : "Sign in"}
       </button>
+
+      {githubAuthEnabled ? (
+        <button
+          type="button"
+          onClick={handleGithubSignIn}
+          disabled={isPending || isGithubPending}
+          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-100 disabled:opacity-60"
+        >
+          {isGithubPending ? "Redirecting to GitHub..." : "Continue with GitHub"}
+        </button>
+      ) : null}
 
       <button
         type="button"

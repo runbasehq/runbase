@@ -5,12 +5,17 @@ import { drizzle } from "drizzle-orm/neon-http";
 config({ path: ".env.local" });
 config({ path: ".env" });
 
-const databaseUrl = process.env.DATABASE_URL;
+const resolvedDatabaseUrl =
+  process.env.DATABASE_URL ??
+  process.env.POSTGRES_URL ??
+  process.env.POSTGRES_PRISMA_URL;
 
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is not set");
+if (!resolvedDatabaseUrl) {
+  throw new Error(
+    "Database URL is not set. Define DATABASE_URL (or POSTGRES_URL).",
+  );
 }
 
-const sql = neon(databaseUrl);
+const sql = neon(resolvedDatabaseUrl);
 
 export const db = drizzle({ client: sql });

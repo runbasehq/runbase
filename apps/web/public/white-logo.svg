@@ -1,0 +1,12 @@
+<svg width="324" height="85" viewBox="0 0 324 85" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M16.6553 3.77344H21.9902V9.1084L25.7637 12.8818L21.9902 16.6553V21.9912H16.6543L12.8818 25.7637L9.10938 21.9912H3.77344V16.6553L0 12.8818L3.77344 9.1084V3.77344H9.1084L12.8818 0L16.6553 3.77344Z" fill="white"/>
+  <path d="M85 61H61V85H5C5 40.8172 40.8172 5 85 5V61Z" fill="url(#white_logo_gradient)"/>
+  <defs>
+    <linearGradient id="white_logo_gradient" x1="4.76367" y1="84.7637" x2="88.2637" y2="4.76367" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#CDFF29"/>
+      <stop offset="0.70093" stop-color="#FF45C7"/>
+      <stop offset="1" stop-color="#BF40FF"/>
+    </linearGradient>
+  </defs>
+  <text x="102" y="55" fill="#FFFFFF" font-size="44" font-family="Inter, sans-serif" font-weight="500" letter-spacing="-1.5">Runbase</text>
+</svg>
