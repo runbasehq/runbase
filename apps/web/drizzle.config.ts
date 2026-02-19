@@ -1,18 +1,8 @@
-import { config } from "dotenv";
+import "dotenv/config";
 import { defineConfig } from "drizzle-kit";
 
-config({ path: ".env.local" });
-config({ path: ".env" });
-
-const databaseUrl =
-  process.env.DATABASE_URL ??
-  process.env.POSTGRES_URL ??
-  process.env.POSTGRES_PRISMA_URL;
-
-if (!databaseUrl) {
-  throw new Error(
-    "Database URL is required for Drizzle. Set DATABASE_URL or POSTGRES_URL.",
-  );
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is not set in apps/web/.env");
 }
 
 export default defineConfig({
@@ -20,6 +10,6 @@ export default defineConfig({
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {
-    url: databaseUrl,
+    url: process.env.DATABASE_URL,
   },
 });
