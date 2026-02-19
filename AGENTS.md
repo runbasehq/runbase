@@ -27,3 +27,8 @@ For `apps/web`, organize domain code under `features/<feature-name>/...`.
 - Use `features/auth/schemas` for auth validation/input schemas.
 - Import feature modules via the `~` alias, which maps to `apps/web/features`.
 - Example import: `~/auth/components/sign-in`
+
+## Styling Rules
+
+- Do not use CSS `clamp()`.
+- Always prioritize Tailwind CSS utility directives/classes for styling.
