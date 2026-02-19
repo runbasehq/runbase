@@ -49,12 +49,12 @@ export default function Page() {
             </a>
           </nav>
 
-          <a
-            href="#"
+          <Link
+            href="/sign-in"
             className="justify-self-end rounded-full bg-black px-8 py-3 text-[16px] font-normal leading-none tracking-[0] text-white transition-opacity hover:opacity-90"
           >
-            Book a Demo
-          </a>
+            Log In
+          </Link>
         </header>
 
         <section className="mx-auto flex w-full max-w-[1520px] flex-1 -translate-y-8 flex-col items-center justify-center px-5 pb-16 pt-10 text-center md:-translate-y-14 md:px-8 md:pb-24 md:pt-12">
