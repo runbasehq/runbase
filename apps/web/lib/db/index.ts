@@ -1,6 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { config } from "dotenv";
 import { drizzle } from "drizzle-orm/neon-http";
+import * as schema from "./schema";
 
 config({ path: ".env.local" });
 config({ path: ".env" });
@@ -18,4 +19,4 @@ if (!resolvedDatabaseUrl) {
 
 const sql = neon(resolvedDatabaseUrl);
 
-export const db = drizzle({ client: sql });
+export const db = drizzle({ client: sql, schema });
