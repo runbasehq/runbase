@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Faculty_Glyphic, Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
+import Script from "next/script";
 import "./globals.css";
 import { QueryProvider } from "./providers/query-provider";
 
@@ -75,10 +76,7 @@ const heroTitleFont = Faculty_Glyphic({
 export const metadata: Metadata = {
   title: "Runbase Multi-Tenant",
   description: "Subdomain-based multi-tenant demo with Upstash Redis",
-  icons: {
-    icon: "/runbase-mark.svg",
-    shortcut: "/runbase-mark.svg",
-  },
+  manifest: "/site.webmanifest",
 };
 
 export default function RootLayout({
@@ -87,8 +85,30 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+<<<<<<< HEAD
     <html lang="en" className={`${satoshi.variable} ${heroTitleFont.variable}`}>
       <body className={`${geistMono.variable} antialiased`}>
+=======
+    <html lang="en" className={`${inter.variable} ${facultyGlyphic.variable}`}>
+      <head>
+        {process.env.NODE_ENV === "development" && (
+          <>
+            <Script
+              src="//unpkg.com/react-grab/dist/index.global.js"
+              crossOrigin="anonymous"
+              strategy="beforeInteractive"
+            />
+            <Script
+              src="//unpkg.com/@react-grab/claude-code/dist/client.global.js"
+              strategy="lazyOnload"
+            />
+          </>
+        )}
+      </head>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+>>>>>>> 24ed9495b6bb30d8fef82739bbd4be15fddb9fe7
         <QueryProvider>{children}</QueryProvider>
       </body>
     </html>
