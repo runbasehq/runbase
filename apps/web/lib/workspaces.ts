@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { workspace, workspaceMember } from "@/lib/db/schema";
+import { extractSubdomainFromHeaders } from "@/lib/subdomains";
 export {
   sanitizeWorkspaceSlug,
   validateWorkspaceSlug,
@@ -52,4 +53,14 @@ export async function getFirstWorkspaceMembershipForUser(userId: string) {
     .limit(1);
 
   return membership ?? null;
+}
+
+export async function getWorkspaceFromHeaders(headers: Pick<Headers, "get">) {
+  const subdomain = extractSubdomainFromHeaders(headers);
+
+  if (!subdomain) {
+    return null;
+  }
+
+  return getWorkspaceBySlug(subdomain);
 }

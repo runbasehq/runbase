@@ -1,4 +1,5 @@
 import { getRedis } from "@/lib/redis";
+import { rootDomain } from "@/lib/utils";
 
 export type SubdomainData = {
   emoji: string;
@@ -7,6 +8,38 @@ export type SubdomainData = {
 
 export function sanitizeSubdomain(subdomain: string) {
   return subdomain.toLowerCase().replace(/[^a-z0-9-]/g, "");
+}
+
+export function extractSubdomainFromHost(rawHost: string) {
+  const hostname = rawHost.split(":")[0]?.toLowerCase() || "";
+
+  if (!hostname) {
+    return null;
+  }
+
+  if (hostname.includes(".localhost")) {
+    return hostname.split(".")[0] || null;
+  }
+
+  const rootDomainFormatted = rootDomain.split(":")[0].toLowerCase();
+
+  if (hostname.includes("---") && hostname.endsWith(".vercel.app")) {
+    const parts = hostname.split("---");
+    return parts[0] || null;
+  }
+
+  const isSubdomain =
+    hostname !== rootDomainFormatted &&
+    hostname !== `www.${rootDomainFormatted}` &&
+    hostname.endsWith(`.${rootDomainFormatted}`);
+
+  return isSubdomain ? hostname.replace(`.${rootDomainFormatted}`, "") : null;
+}
+
+export function extractSubdomainFromHeaders(headers: Pick<Headers, "get">) {
+  const forwardedHost = headers.get("x-forwarded-host");
+  const host = forwardedHost || headers.get("host") || "";
+  return extractSubdomainFromHost(host);
 }
 
 export function isValidIcon(str: string) {

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
@@ -9,9 +9,14 @@ import {
   getWorkspaceBySlug,
 } from "@/lib/workspaces";
 import {
-  dashboardThreads,
-  WorkspaceDashboardShell,
-} from "~/workspace-dashboard";
+  FeedbackDashboardShell,
+  getFeedbackSnapshot,
+  seedWorkspaceFeedbackDefaults,
+} from "~/feedback";
+import {
+  FEEDBACK_ANON_COOKIE,
+  isValidAnonSessionId,
+} from "~/feedback/lib/vote-session";
 
 export async function generateMetadata({
   params,
@@ -63,12 +68,36 @@ export default async function WorkspaceDashboardPage({
     notFound();
   }
 
+  await seedWorkspaceFeedbackDefaults(foundWorkspace.id);
+
+  const cookieStore = await cookies();
+  const anonCookie = cookieStore.get(FEEDBACK_ANON_COOKIE)?.value ?? null;
+  const snapshot = await getFeedbackSnapshot({
+    workspaceId: foundWorkspace.id,
+    userId: session.user.id,
+    anonSessionId: isValidAnonSessionId(anonCookie) ? anonCookie : null,
+  });
+
+  const publicHref = `${protocol}://${foundWorkspace.slug}.${rootDomain}`;
+  const dashboardHref = `${publicHref}/dashboard`;
+  const signInHref = `${protocol}://${rootDomain}/sign-in?next=${encodeURIComponent(dashboardHref)}`;
+  const githubAuthEnabled = Boolean(
+    process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET,
+  );
+
   return (
-    <WorkspaceDashboardShell
+    <FeedbackDashboardShell
+      mode="dashboard"
       workspaceName={foundWorkspace.name}
-      workspaceSlug={foundWorkspace.slug}
+      workspaceSlug={`${foundWorkspace.slug}.${rootDomain}`}
       viewerEmail={session.user.email}
-      threads={dashboardThreads}
+      snapshot={snapshot}
+      isAuthenticated={true}
+      dashboardHref={dashboardHref}
+      signInHref={signInHref}
+      callbackUrl={dashboardHref}
+      githubAuthEnabled={githubAuthEnabled}
+      publicHref={publicHref}
     />
   );
 }

@@ -1,34 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { extractSubdomainFromHeaders } from "@/lib/subdomains";
 import { protocol, rootDomain } from "@/lib/utils";
-
-function extractSubdomain(request: NextRequest): string | null {
-  const forwardedHost = request.headers.get("x-forwarded-host");
-  const host = forwardedHost || request.headers.get("host") || "";
-  const hostname = host.split(":")[0]?.toLowerCase() || "";
-
-  if (hostname.includes(".localhost")) {
-    return hostname.split(".")[0] || null;
-  }
-
-  const rootDomainFormatted = rootDomain.split(":")[0].toLowerCase();
-
-  if (hostname.includes("---") && hostname.endsWith(".vercel.app")) {
-    const parts = hostname.split("---");
-    return parts[0] || null;
-  }
-
-  const isSubdomain =
-    hostname !== rootDomainFormatted &&
-    hostname !== `www.${rootDomainFormatted}` &&
-    hostname.endsWith(`.${rootDomainFormatted}`);
-
-  return isSubdomain ? hostname.replace(`.${rootDomainFormatted}`, "") : null;
-}
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const subdomain = extractSubdomain(request);
+  const subdomain = extractSubdomainFromHeaders(request.headers);
 
   if (subdomain) {
     if (pathname.startsWith("/admin")) {

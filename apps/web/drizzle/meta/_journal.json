@@ -15,6 +15,13 @@
       "when": 1771526915238,
       "tag": "0001_gray_thunderball",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1771605557876,
+      "tag": "0002_purple_puppet_master",
+      "breakpoints": true
     }
   ]
 }
