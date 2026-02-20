@@ -51,7 +51,7 @@ export default function Page() {
 
           <Link
             href="/sign-in"
-            className="justify-self-end rounded-full bg-black px-8 py-3 text-[16px] font-normal leading-none tracking-[0] text-white transition-opacity hover:opacity-90"
+            className="inline-flex min-h-14 min-w-[176px] items-center justify-center justify-self-end rounded-full bg-black px-8 py-3 text-[18px] font-normal leading-none tracking-[0] text-white transition-opacity hover:opacity-90"
           >
             Log In
           </Link>
@@ -59,13 +59,13 @@ export default function Page() {
 
         <section className="mx-auto flex w-full max-w-[1520px] flex-1 -translate-y-8 flex-col items-center justify-center px-5 pb-16 pt-10 text-center md:-translate-y-14 md:px-8 md:pb-24 md:pt-12">
           <h1 className="max-w-[1140px] text-balance text-[44px] font-normal leading-[110%] tracking-[-0.04em] md:text-[70px]">
-            Unleash continuous MCP testing at scale, powered by AI
+            Modern customer support &amp; feedback platform without paying
+            absurd per-seat pricing
           </h1>
           <p className="mt-8 max-w-[1120px] text-pretty text-[14px] font-normal leading-[140%] tracking-[-0.04em] text-black/55 md:text-[16px]">
-            Runbase turns MCP testing into a one-click ritual. Our open-source
-            engine spins up smart agents that hammer every tool and endpoint,
-            schedules tests 24/7, and surfaces crystal-clear results. No code,
-            no blind spots.
+            Support customers with AI, collect feedback, and ship product
+            updates from one tool. Keep your margins and stop bleeding budget on
+            overpriced software stacks.
           </p>
         </section>
       </div>
