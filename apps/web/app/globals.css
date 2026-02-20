@@ -124,6 +124,16 @@
   --r-lg: 18px;
 
   --ring: rgba(37, 99, 235, 0.3);
+
+  --details-rail-bg-start: #f8e3ea;
+  --details-rail-bg-mid: #fcf6de;
+  --details-rail-bg-end: #f6e9bb;
+  --details-rail-bg-gradient: linear-gradient(
+    160deg,
+    var(--details-rail-bg-start) 0%,
+    var(--details-rail-bg-mid) 52%,
+    var(--details-rail-bg-end) 100%
+  );
 }
 
 .dark {

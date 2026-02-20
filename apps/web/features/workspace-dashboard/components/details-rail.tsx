@@ -11,7 +11,7 @@ import type { DashboardThread } from "~/workspace-dashboard/lib/types";
 
 export function DetailsRail({ thread }: { thread: DashboardThread }) {
   return (
-    <aside className="h-full border-l border-(--border) bg-[#ece9d2] px-3 py-4">
+    <aside className="h-full border-l border-(--border) bg-[#FCF6DE] [background:var(--details-rail-bg-gradient)] px-3 py-4">
       <div className="inline-flex rounded-(--r-sm) bg-(--surface-2) p-1">
         <button
           type="button"
