@@ -41,6 +41,7 @@
   "devDependencies": {
     "@better-auth/cli": "^1.4.18",
     "@effect/language-service": "^0.75.1",
+    "@react-grab/claude-code": "^0.1.16",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
