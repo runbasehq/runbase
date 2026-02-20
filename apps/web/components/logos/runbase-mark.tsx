@@ -3,31 +3,34 @@ import type { SVGProps } from "react";
 export function RunbaseMark(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 85 85"
+      width="114"
+      height="103"
+      viewBox="0 0 114 103"
       fill="none"
-      {...props}
+      xmlns="http://www.w3.org/2000/svg"
     >
-      <path
-        fill="#fff"
-        d="M16.655 3.773h5.335v5.335l3.774 3.774-3.774 3.773v5.336h-5.336l-3.772 3.773-3.773-3.773H3.773v-5.336L0 12.882l3.773-3.774V3.773h5.335L12.882 0z"
+      <rect
+        width="90"
+        height="15"
+        transform="matrix(-1 0 0 1 102 76)"
+        fill="url(#paint0_linear_45_24)"
       />
-      <path
-        fill="url(#runbase_mark_gradient_jsx)"
-        d="M85 61H61v24H5C5 40.817 40.817 5 85 5z"
-      />
+      <rect x="12" y="54" width="90" height="16" fill="black" />
+      <rect x="48" y="33" width="54" height="15" fill="black" />
+      <rect x="12" y="12" width="36" height="15" fill="black" />
       <defs>
         <linearGradient
-          id="runbase_mark_gradient_jsx"
-          x1={4.764}
-          x2={88.264}
-          y1={84.764}
-          y2={4.764}
+          id="paint0_linear_45_24"
+          x1="0"
+          y1="7.5"
+          x2="90"
+          y2="7.5"
           gradientUnits="userSpaceOnUse"
         >
-          <stop stopColor="#CDFF29" />
-          <stop offset={0.701} stopColor="#FF45C7" />
-          <stop offset={1} stopColor="#BF40FF" />
+          <stop stop-color="#CDFF29" />
+          <stop offset="0.320517" stop-color="#BCFF7A" />
+          <stop offset="0.745575" stop-color="#FF45C7" />
+          <stop offset="1" stop-color="#BF40FF" />
         </linearGradient>
       </defs>
     </svg>
