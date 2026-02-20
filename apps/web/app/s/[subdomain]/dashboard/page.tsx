@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+import { HydrationBoundary } from "@tanstack/react-query";
 
 import { auth } from "@/lib/auth";
 import { protocol, rootDomain } from "@/lib/utils";
@@ -17,6 +18,7 @@ import {
   FEEDBACK_ANON_COOKIE,
   isValidAnonSessionId,
 } from "~/feedback/lib/vote-session";
+import { buildPostsHydrationState } from "~/posts/lib/hydration";
 
 export async function generateMetadata({
   params,
@@ -78,6 +80,9 @@ export default async function WorkspaceDashboardPage({
     anonSessionId: isValidAnonSessionId(anonCookie) ? anonCookie : null,
   });
 
+  const workspaceSlug = `${foundWorkspace.slug}.${rootDomain}`;
+  const postsHydrationState = buildPostsHydrationState(workspaceSlug, snapshot);
+
   const publicHref = `${protocol}://${foundWorkspace.slug}.${rootDomain}`;
   const dashboardHref = `${publicHref}/dashboard`;
   const signInHref = `${protocol}://${rootDomain}/sign-in?next=${encodeURIComponent(dashboardHref)}`;
@@ -86,18 +91,20 @@ export default async function WorkspaceDashboardPage({
   );
 
   return (
-    <FeedbackDashboardShell
-      mode="dashboard"
-      workspaceName={foundWorkspace.name}
-      workspaceSlug={`${foundWorkspace.slug}.${rootDomain}`}
-      viewerEmail={session.user.email}
-      snapshot={snapshot}
-      isAuthenticated={true}
-      dashboardHref={dashboardHref}
-      signInHref={signInHref}
-      callbackUrl={dashboardHref}
-      githubAuthEnabled={githubAuthEnabled}
-      publicHref={publicHref}
-    />
+    <HydrationBoundary state={postsHydrationState}>
+      <FeedbackDashboardShell
+        mode="dashboard"
+        workspaceName={foundWorkspace.name}
+        workspaceSlug={workspaceSlug}
+        viewerEmail={session.user.email}
+        snapshot={snapshot}
+        isAuthenticated={true}
+        dashboardHref={dashboardHref}
+        signInHref={signInHref}
+        callbackUrl={dashboardHref}
+        githubAuthEnabled={githubAuthEnabled}
+        publicHref={publicHref}
+      />
+    </HydrationBoundary>
   );
 }

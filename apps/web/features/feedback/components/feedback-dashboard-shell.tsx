@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 
 import type { FeedbackSnapshot } from "~/feedback/lib/types";
+import { usePosts } from "~/posts/hooks/use-posts";
 
 import { FeedbackAuthActions } from "./feedback-auth-actions";
 import { UpvoteButton } from "./upvote-button";
@@ -53,15 +54,19 @@ export function FeedbackDashboardShell({
   );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const { data: posts = snapshot.posts } = usePosts({
+    workspaceSlug,
+    initialPosts: snapshot.posts,
+  });
 
   const filteredPosts = useMemo(() => {
-    return snapshot.posts.filter((post) => {
+    return posts.filter((post) => {
       const boardMatch = activeBoardId ? post.boardId === activeBoardId : true;
       const statusMatch =
         activeStatusId === "all" ? true : post.statusId === activeStatusId;
       return boardMatch && statusMatch;
     });
-  }, [activeBoardId, activeStatusId, snapshot.posts]);
+  }, [activeBoardId, activeStatusId, posts]);
 
   const selectedPost =
     filteredPosts.find((post) => post.id === selectedPostId) ??
@@ -204,6 +209,7 @@ export function FeedbackDashboardShell({
                           </div>
                         </div>
                         <UpvoteButton
+                          workspaceSlug={workspaceSlug}
                           postId={post.id}
                           initialCount={post.upvoteCount}
                           initialHasVoted={post.viewerHasVoted}
@@ -227,7 +233,10 @@ export function FeedbackDashboardShell({
             </section>
 
             <aside className="hidden bg-(--surface-2) p-4 sm:p-6 xl:block">
-              <DetailsPanel selectedPost={selectedPost} />
+              <DetailsPanel
+                workspaceSlug={workspaceSlug}
+                selectedPost={selectedPost}
+              />
             </aside>
           </div>
         </motion.div>
@@ -293,7 +302,10 @@ export function FeedbackDashboardShell({
               transition={{ duration: 0.18, ease: "easeOut" }}
               className="fixed inset-y-0 right-0 z-50 w-[22rem] overflow-hidden rounded-l-(--r-lg) border-l border-(--border) bg-(--surface-2) p-4 xl:hidden"
             >
-              <DetailsPanel selectedPost={selectedPost} />
+              <DetailsPanel
+                workspaceSlug={workspaceSlug}
+                selectedPost={selectedPost}
+              />
             </motion.div>
           </>
         ) : null}
@@ -417,8 +429,10 @@ function SidePanel({
 }
 
 function DetailsPanel({
+  workspaceSlug,
   selectedPost,
 }: {
+  workspaceSlug: string;
   selectedPost: FeedbackSnapshot["posts"][number] | null;
 }) {
   if (!selectedPost) {
@@ -457,6 +471,7 @@ function DetailsPanel({
           Votes
         </p>
         <UpvoteButton
+          workspaceSlug={workspaceSlug}
           postId={selectedPost.id}
           initialCount={selectedPost.upvoteCount}
           initialHasVoted={selectedPost.viewerHasVoted}
