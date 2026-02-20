@@ -3,24 +3,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { protocol, rootDomain } from "@/lib/utils";
 
 function extractSubdomain(request: NextRequest): string | null {
-  const url = request.url;
-  const host = request.headers.get("host") || "";
-  const hostname = host.split(":")[0];
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const host = forwardedHost || request.headers.get("host") || "";
+  const hostname = host.split(":")[0]?.toLowerCase() || "";
 
-  if (url.includes("localhost") || url.includes("127.0.0.1")) {
-    const fullUrlMatch = url.match(/http:\/\/([^.]+)\.localhost/);
-    if (fullUrlMatch?.[1]) {
-      return fullUrlMatch[1];
-    }
-
-    if (hostname.includes(".localhost")) {
-      return hostname.split(".")[0];
-    }
-
-    return null;
+  if (hostname.includes(".localhost")) {
+    return hostname.split(".")[0] || null;
   }
 
-  const rootDomainFormatted = rootDomain.split(":")[0];
+  const rootDomainFormatted = rootDomain.split(":")[0].toLowerCase();
 
   if (hostname.includes("---") && hostname.endsWith(".vercel.app")) {
     const parts = hostname.split("---");

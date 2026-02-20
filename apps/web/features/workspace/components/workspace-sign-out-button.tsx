@@ -3,9 +3,18 @@
 import { useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
+import { cn } from "@/lib/utils";
 import { protocol, rootDomain } from "@/lib/utils";
 
-export function WorkspaceSignOutButton() {
+export function WorkspaceSignOutButton({
+  className,
+  errorClassName,
+  label = "Sign out",
+}: {
+  className?: string;
+  errorClassName?: string;
+  label?: string;
+}) {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,11 +39,16 @@ export function WorkspaceSignOutButton() {
         type="button"
         onClick={handleSignOut}
         disabled={isPending}
-        className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-zinc-100 transition-colors hover:border-white/40 disabled:opacity-60"
+        className={cn(
+          "inline-flex items-center rounded-(--r-sm) border border-(--border) bg-(--surface) px-3 py-1.5 text-sm text-(--text) transition-colors hover:bg-(--surface-2) disabled:opacity-60",
+          className,
+        )}
       >
-        {isPending ? "Signing out..." : "Sign out"}
+        {isPending ? "Signing out..." : label}
       </button>
-      {error ? <p className="text-xs text-rose-300">{error}</p> : null}
+      {error ? (
+        <p className={cn("text-xs text-(--danger)", errorClassName)}>{error}</p>
+      ) : null}
     </div>
   );
 }
