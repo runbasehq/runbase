@@ -32,6 +32,7 @@
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "server-only": "^0.0.1",
     "shadcn": "^3.8.5",
     "tailwind-merge": "^3.5.0",
     "tailwind-variants": "^3.2.2",
