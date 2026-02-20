@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Faculty_Glyphic, Geist_Mono } from "next/font/google";
+import { Faculty_Glyphic, Geist_Mono, Inter } from "next/font/google";
 import localFont from "next/font/local";
 import Script from "next/script";
 import "./globals.css";
@@ -67,6 +67,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const inter = Inter({
+  weight: "400",
+  variable: "--font-inter",
+});
+
 const heroTitleFont = Faculty_Glyphic({
   subsets: ["latin"],
   weight: "400",
@@ -85,11 +90,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-<<<<<<< HEAD
-    <html lang="en" className={`${satoshi.variable} ${heroTitleFont.variable}`}>
-      <body className={`${geistMono.variable} antialiased`}>
-=======
-    <html lang="en" className={`${inter.variable} ${facultyGlyphic.variable}`}>
+    <html lang="en" className={`${inter.variable} ${heroTitleFont.variable}`}>
       <head>
         {process.env.NODE_ENV === "development" && (
           <>
@@ -106,9 +107,7 @@ export default function RootLayout({
         )}
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
->>>>>>> 24ed9495b6bb30d8fef82739bbd4be15fddb9fe7
         <QueryProvider>{children}</QueryProvider>
       </body>
     </html>
