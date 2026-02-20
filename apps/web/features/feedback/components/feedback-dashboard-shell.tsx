@@ -43,10 +43,17 @@ export function FeedbackDashboardShell({
   githubAuthEnabled,
   publicHref,
 }: FeedbackDashboardShellProps) {
+  const defaultBoard =
+    snapshot.boards.find((board) => board.isDefault) ??
+    snapshot.boards[0] ??
+    null;
+  const defaultStatus =
+    snapshot.statuses.find((status) => status.position === 0) ??
+    snapshot.statuses[0] ??
+    null;
+
   const [activeBoardId, setActiveBoardId] = useState<string | null>(
-    snapshot.boards.find((board) => board.isDefault)?.id ??
-      snapshot.boards[0]?.id ??
-      null,
+    defaultBoard?.id ?? null,
   );
   const [activeStatusId, setActiveStatusId] = useState<string>("all");
   const [selectedPostId, setSelectedPostId] = useState<string | null>(
@@ -172,6 +179,16 @@ export function FeedbackDashboardShell({
                     signInHref={signInHref}
                     callbackUrl={callbackUrl}
                     githubAuthEnabled={githubAuthEnabled}
+                    workspaceSlug={workspaceSlug}
+                    defaultBoard={{
+                      id: defaultBoard?.id ?? "",
+                      name: defaultBoard?.name ?? "Feature requests",
+                    }}
+                    defaultStatus={{
+                      id: defaultStatus?.id ?? "",
+                      key: defaultStatus?.key ?? "open",
+                      label: defaultStatus?.label ?? "Open",
+                    }}
                   />
                 </div>
               </div>
@@ -276,6 +293,16 @@ export function FeedbackDashboardShell({
                     signInHref={signInHref}
                     callbackUrl={callbackUrl}
                     githubAuthEnabled={githubAuthEnabled}
+                    workspaceSlug={workspaceSlug}
+                    defaultBoard={{
+                      id: defaultBoard?.id ?? "",
+                      name: defaultBoard?.name ?? "Feature requests",
+                    }}
+                    defaultStatus={{
+                      id: defaultStatus?.id ?? "",
+                      key: defaultStatus?.key ?? "open",
+                      label: defaultStatus?.label ?? "Open",
+                    }}
                   />
                 }
               />

@@ -13,9 +13,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { FancyButton } from "@/components/ui/fancy-button";
 import { authClient } from "@/lib/auth-client";
-import { cn } from "@/lib/utils";
+import type {
+  FeedbackBoardItem,
+  FeedbackStatusItem,
+} from "~/feedback/lib/types";
+
+import { CreateFeedbackPostDialog } from "./create-feedback-post-dialog";
 
 interface FeedbackAuthActionsProps {
   isAuthenticated: boolean;
@@ -23,6 +28,9 @@ interface FeedbackAuthActionsProps {
   signInHref: string;
   callbackUrl: string;
   githubAuthEnabled: boolean;
+  workspaceSlug: string;
+  defaultBoard: Pick<FeedbackBoardItem, "id" | "name">;
+  defaultStatus: Pick<FeedbackStatusItem, "id" | "key" | "label">;
 }
 
 export function FeedbackAuthActions({
@@ -31,6 +39,9 @@ export function FeedbackAuthActions({
   signInHref,
   callbackUrl,
   githubAuthEnabled,
+  workspaceSlug,
+  defaultBoard,
+  defaultStatus,
 }: FeedbackAuthActionsProps) {
   const [isGithubPending, setIsGithubPending] = useState(false);
 
@@ -54,16 +65,16 @@ export function FeedbackAuthActions({
         onGithubSignIn={handleGithubSignIn}
         githubAuthEnabled={githubAuthEnabled}
         isGithubPending={isGithubPending}
+        workspaceSlug={workspaceSlug}
+        defaultBoard={defaultBoard}
+        defaultStatus={defaultStatus}
       />
 
-      <Link
-        href={isAuthenticated ? dashboardHref : signInHref}
-        className={cn(
-          buttonVariants({ variant: "fancy-basic", size: "fancy-sm" }),
-        )}
-      >
-        {isAuthenticated ? "Dashboard" : "Log in"}
-      </Link>
+      <FancyButton.Root asChild variant="basic" size="small">
+        <Link href={isAuthenticated ? dashboardHref : signInHref}>
+          {isAuthenticated ? "Dashboard" : "Log in"}
+        </Link>
+      </FancyButton.Root>
     </div>
   );
 }
@@ -74,6 +85,9 @@ interface CreatePostAuthGateProps {
   onGithubSignIn: () => Promise<void>;
   githubAuthEnabled: boolean;
   isGithubPending: boolean;
+  workspaceSlug: string;
+  defaultBoard: Pick<FeedbackBoardItem, "id" | "name">;
+  defaultStatus: Pick<FeedbackStatusItem, "id" | "key" | "label">;
 }
 
 function CreatePostAuthGate({
@@ -82,18 +96,25 @@ function CreatePostAuthGate({
   onGithubSignIn,
   githubAuthEnabled,
   isGithubPending,
+  workspaceSlug,
+  defaultBoard,
+  defaultStatus,
 }: CreatePostAuthGateProps) {
   if (isAuthenticated) {
     return (
-      <Button variant="fancy" size="fancy-md" type="button">
-        Create new post
-      </Button>
+      <CreateFeedbackPostDialog
+        workspaceSlug={workspaceSlug}
+        defaultBoard={defaultBoard}
+        defaultStatus={defaultStatus}
+      />
     );
   }
 
   return (
     <AlertDialog>
-      <AlertDialogTrigger render={<Button variant="fancy" size="fancy-md" />}>
+      <AlertDialogTrigger
+        render={<FancyButton.Root variant="neutral" size="medium" />}
+      >
         Create new post
       </AlertDialogTrigger>
       <AlertDialogContent>
@@ -106,28 +127,27 @@ function CreatePostAuthGate({
         </AlertDialogHeader>
         <AlertDialogFooter className="sm:grid sm:grid-cols-1">
           {githubAuthEnabled ? (
-            <Button
+            <FancyButton.Root
               type="button"
-              variant="fancy"
-              size="fancy-sm"
+              variant="neutral"
+              size="small"
               disabled={isGithubPending}
               onClick={onGithubSignIn}
             >
               {isGithubPending
                 ? "Redirecting to GitHub..."
                 : "Continue with GitHub"}
-            </Button>
+            </FancyButton.Root>
           ) : null}
 
-          <Link
-            href={signInHref}
-            className={cn(
-              buttonVariants({ variant: "fancy-basic", size: "fancy-sm" }),
-              "w-full",
-            )}
+          <FancyButton.Root
+            asChild
+            variant="basic"
+            size="small"
+            className="w-full"
           >
-            Use email and password
-          </Link>
+            <Link href={signInHref}>Use email and password</Link>
+          </FancyButton.Root>
 
           <AlertDialogCancel variant="outline" size="fancy-sm">
             Cancel

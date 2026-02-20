@@ -107,6 +107,10 @@ export function useLikes({ workspaceSlug, postId }: UseLikesOptions) {
         },
       );
     },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: postsKey, exact: true });
+      queryClient.invalidateQueries({ queryKey: postKey, exact: true });
+    },
   });
 
   return {
