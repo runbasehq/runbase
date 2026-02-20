@@ -225,75 +225,89 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
           FeedbackPersistenceError
         > =>
           Effect.gen(function* () {
-            const [boards, statuses, posts] = yield* fromPersistencePromise(
-              "feedback.getSnapshot",
-              () =>
-                Promise.all([
-                  db
-                    .select({
-                      id: feedbackBoard.id,
-                      name: feedbackBoard.name,
-                      slug: feedbackBoard.slug,
-                      description: feedbackBoard.description,
-                      isDefault: feedbackBoard.isDefault,
-                    })
-                    .from(feedbackBoard)
-                    .where(eq(feedbackBoard.workspaceId, workspaceId))
-                    .orderBy(
-                      desc(feedbackBoard.isDefault),
-                      asc(feedbackBoard.createdAt),
-                    ),
-                  db
-                    .select({
-                      id: feedbackStatus.id,
-                      key: feedbackStatus.key,
-                      label: feedbackStatus.label,
-                      color: feedbackStatus.color,
-                      position: feedbackStatus.position,
-                      isClosed: feedbackStatus.isClosed,
-                    })
-                    .from(feedbackStatus)
-                    .where(eq(feedbackStatus.workspaceId, workspaceId))
-                    .orderBy(asc(feedbackStatus.position)),
-                  db
-                    .select({
-                      id: feedbackPost.id,
-                      boardId: feedbackPost.boardId,
-                      statusId: feedbackPost.statusId,
-                      title: feedbackPost.title,
-                      slug: feedbackPost.slug,
-                      content: feedbackPost.content,
-                      upvoteCount: feedbackPost.upvoteCount,
-                      commentCount: feedbackPost.commentCount,
-                      createdAt: feedbackPost.createdAt,
-                      statusLabel: feedbackStatus.label,
-                      statusKey: feedbackStatus.key,
-                      boardName: feedbackBoard.name,
-                    })
-                    .from(feedbackPost)
-                    .innerJoin(
-                      feedbackStatus,
-                      and(
-                        eq(
-                          feedbackPost.workspaceId,
-                          feedbackStatus.workspaceId,
+            const { boards, statuses, posts } = yield* Effect.all(
+              {
+                boards: fromPersistencePromise(
+                  "feedback.getSnapshot.boards",
+                  () =>
+                    db
+                      .select({
+                        id: feedbackBoard.id,
+                        name: feedbackBoard.name,
+                        slug: feedbackBoard.slug,
+                        description: feedbackBoard.description,
+                        isDefault: feedbackBoard.isDefault,
+                      })
+                      .from(feedbackBoard)
+                      .where(eq(feedbackBoard.workspaceId, workspaceId))
+                      .orderBy(
+                        desc(feedbackBoard.isDefault),
+                        asc(feedbackBoard.createdAt),
+                      ),
+                ),
+                statuses: fromPersistencePromise(
+                  "feedback.getSnapshot.statuses",
+                  () =>
+                    db
+                      .select({
+                        id: feedbackStatus.id,
+                        key: feedbackStatus.key,
+                        label: feedbackStatus.label,
+                        color: feedbackStatus.color,
+                        position: feedbackStatus.position,
+                        isClosed: feedbackStatus.isClosed,
+                      })
+                      .from(feedbackStatus)
+                      .where(eq(feedbackStatus.workspaceId, workspaceId))
+                      .orderBy(asc(feedbackStatus.position)),
+                ),
+                posts: fromPersistencePromise(
+                  "feedback.getSnapshot.posts",
+                  () =>
+                    db
+                      .select({
+                        id: feedbackPost.id,
+                        boardId: feedbackPost.boardId,
+                        statusId: feedbackPost.statusId,
+                        title: feedbackPost.title,
+                        slug: feedbackPost.slug,
+                        content: feedbackPost.content,
+                        upvoteCount: feedbackPost.upvoteCount,
+                        commentCount: feedbackPost.commentCount,
+                        createdAt: feedbackPost.createdAt,
+                        statusLabel: feedbackStatus.label,
+                        statusKey: feedbackStatus.key,
+                        boardName: feedbackBoard.name,
+                      })
+                      .from(feedbackPost)
+                      .innerJoin(
+                        feedbackStatus,
+                        and(
+                          eq(
+                            feedbackPost.workspaceId,
+                            feedbackStatus.workspaceId,
+                          ),
+                          eq(feedbackPost.statusId, feedbackStatus.id),
                         ),
-                        eq(feedbackPost.statusId, feedbackStatus.id),
+                      )
+                      .innerJoin(
+                        feedbackBoard,
+                        and(
+                          eq(
+                            feedbackPost.workspaceId,
+                            feedbackBoard.workspaceId,
+                          ),
+                          eq(feedbackPost.boardId, feedbackBoard.id),
+                        ),
+                      )
+                      .where(eq(feedbackPost.workspaceId, workspaceId))
+                      .orderBy(
+                        desc(feedbackPost.upvoteCount),
+                        desc(feedbackPost.createdAt),
                       ),
-                    )
-                    .innerJoin(
-                      feedbackBoard,
-                      and(
-                        eq(feedbackPost.workspaceId, feedbackBoard.workspaceId),
-                        eq(feedbackPost.boardId, feedbackBoard.id),
-                      ),
-                    )
-                    .where(eq(feedbackPost.workspaceId, workspaceId))
-                    .orderBy(
-                      desc(feedbackPost.upvoteCount),
-                      desc(feedbackPost.createdAt),
-                    ),
-                ]),
+                ),
+              },
+              { concurrency: "unbounded" },
             );
 
             const postIds = posts.map((post) => post.id);
@@ -461,13 +475,18 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
           FeedbackRateLimited | FeedbackPersistenceError
         > =>
           Effect.gen(function* () {
-            const [workspaceLimit, postLimit] = yield* fromPersistencePromise(
-              "feedback.enforceVoteRateLimit",
-              () =>
-                Promise.all([
-                  enforceVoteRateLimitIo(workspaceId, ip),
-                  enforceVotePerPostRateLimitIo(workspaceId, ip, postId),
-                ]),
+            const [workspaceLimit, postLimit] = yield* Effect.all(
+              [
+                fromPersistencePromise(
+                  "feedback.enforceVoteRateLimit.workspace",
+                  () => enforceVoteRateLimitIo(workspaceId, ip),
+                ),
+                fromPersistencePromise(
+                  "feedback.enforceVoteRateLimit.post",
+                  () => enforceVotePerPostRateLimitIo(workspaceId, ip, postId),
+                ),
+              ],
+              { concurrency: "unbounded" },
             );
 
             if (!workspaceLimit.success || !postLimit.success) {
