@@ -44,6 +44,8 @@ For `apps/web`, organize domain code under `features/<feature-name>/...`.
 ## Dependency Injection (Effect.Service / Layer)
 
 - Services and repositories MUST use `Effect.Service` and be wired through `Layer` composition.
+- Services and repositories MUST define `accessors: true` and expose callable methods via service accessors.
+- Service and repository methods MUST be declared with `Effect.fn("FeatureName.methodName")`.
 - Domain logic MUST depend on service tags/context, never concrete live implementations.
 - Layer wiring MUST happen at runtime/app entry points, not inside route/service methods.
 
@@ -80,6 +82,13 @@ For `apps/web`, organize domain code under `features/<feature-name>/...`.
 - API handlers MUST live at `app/api/**/route.ts`.
 - Route modules MUST export method handlers (`GET`, `POST`, `PATCH`, etc.).
 - Route modules MUST stay thin and delegate business behavior to services.
+
+## API Route Service Usage (Mandatory)
+
+- Route handlers in `app/api/**/route.ts` MUST call domain behavior through `x.service.ts` only.
+- Route handlers MUST use service accessors (`FeatureService.method(...)`) instead of resolving service instances with `yield* FeatureService`.
+- Route handlers MUST NOT import `x.repository.ts`, `@/lib/db`, Drizzle query builders, or `features/**/lib/queries`.
+- If a route needs domain behavior that does not exist yet, add a service method first, then call that service method from the route.
 
 ## Repository and Drizzle Rules
 

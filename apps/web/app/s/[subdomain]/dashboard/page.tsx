@@ -4,16 +4,14 @@ import { notFound, redirect } from "next/navigation";
 import { HydrationBoundary } from "@tanstack/react-query";
 
 import { auth } from "@/lib/auth";
+import { appRuntime } from "@/lib/runtime";
 import { protocol, rootDomain } from "@/lib/utils";
 import {
   getUserWorkspaceMembershipBySlug,
   getWorkspaceBySlug,
 } from "@/lib/workspaces";
-import {
-  FeedbackDashboardShell,
-  getFeedbackSnapshot,
-  seedWorkspaceFeedbackDefaults,
-} from "~/feedback";
+import { FeedbackDashboardShell } from "~/feedback";
+import { FeedbackService } from "~/feedback/feedback.service";
 import {
   FEEDBACK_ANON_COOKIE,
   isValidAnonSessionId,
@@ -70,15 +68,19 @@ export default async function WorkspaceDashboardPage({
     notFound();
   }
 
-  await seedWorkspaceFeedbackDefaults(foundWorkspace.id);
+  await appRuntime.runPromise(
+    FeedbackService.seedWorkspaceDefaults({ workspaceId: foundWorkspace.id }),
+  );
 
   const cookieStore = await cookies();
   const anonCookie = cookieStore.get(FEEDBACK_ANON_COOKIE)?.value ?? null;
-  const snapshot = await getFeedbackSnapshot({
-    workspaceId: foundWorkspace.id,
-    userId: session.user.id,
-    anonSessionId: isValidAnonSessionId(anonCookie) ? anonCookie : null,
-  });
+  const snapshot = await appRuntime.runPromise(
+    FeedbackService.getSnapshot({
+      workspaceId: foundWorkspace.id,
+      userId: session.user.id,
+      anonSessionId: isValidAnonSessionId(anonCookie) ? anonCookie : null,
+    }),
+  );
 
   const workspaceSlug = `${foundWorkspace.slug}.${rootDomain}`;
   const postsHydrationState = buildPostsHydrationState(workspaceSlug, snapshot);

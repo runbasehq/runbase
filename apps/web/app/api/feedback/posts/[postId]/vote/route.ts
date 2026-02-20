@@ -4,9 +4,7 @@ import { Effect } from "effect";
 import { auth } from "@/lib/auth";
 import { appRuntime } from "@/lib/runtime";
 import { getWorkspaceFromHeaders } from "@/lib/workspaces";
-import {
-  handleFeedbackError,
-} from "~/feedback/feedback.errors";
+import { handleFeedbackError } from "~/feedback/feedback.errors";
 import { FeedbackService } from "~/feedback/feedback.service";
 import {
   getAnonVoteCookieConfig,
@@ -58,14 +56,11 @@ export async function POST(
     ? { userId: session.user.id, anonSessionId: null }
     : { userId: null, anonSessionId: anonSession.anonSessionId! };
 
-  const program = Effect.gen(function* () {
-    const service = yield* FeedbackService;
-    return yield* service.voteForPost({
-      workspaceId: workspace.id,
-      postId,
-      identity,
-      ip,
-    });
+  const program = FeedbackService.voteForPost({
+    workspaceId: workspace.id,
+    postId,
+    identity,
+    ip,
   }).pipe(
     Effect.match({
       onSuccess: (result) => {
@@ -73,7 +68,11 @@ export async function POST(
           status: result.alreadyVoted ? 200 : 201,
         });
 
-        return withAnonCookie(response, anonSession.anonSessionId, !session?.user);
+        return withAnonCookie(
+          response,
+          anonSession.anonSessionId,
+          !session?.user,
+        );
       },
       onFailure: handleFeedbackError,
     }),
@@ -101,18 +100,19 @@ export async function DELETE(
     ? { userId: session.user.id, anonSessionId: null }
     : { userId: null, anonSessionId: anonSession.anonSessionId! };
 
-  const program = Effect.gen(function* () {
-    const service = yield* FeedbackService;
-    return yield* service.unvoteForPost({
-      workspaceId: workspace.id,
-      postId,
-      identity,
-    });
+  const program = FeedbackService.unvoteForPost({
+    workspaceId: workspace.id,
+    postId,
+    identity,
   }).pipe(
     Effect.match({
       onSuccess: (result) => {
         const response = NextResponse.json(result);
-        return withAnonCookie(response, anonSession.anonSessionId, !session?.user);
+        return withAnonCookie(
+          response,
+          anonSession.anonSessionId,
+          !session?.user,
+        );
       },
       onFailure: handleFeedbackError,
     }),
