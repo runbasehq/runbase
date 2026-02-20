@@ -10,7 +10,7 @@ import { SignIn } from "~/auth/components/sign-in";
 
 export const dynamic = "force-dynamic";
 
-export default async function SignInPage() {
+export default async function SignUpPage() {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -63,7 +63,7 @@ export default async function SignInPage() {
           </div>
 
           <div className="w-full max-w-[430px]">
-            <SignIn githubAuthEnabled={githubAuthEnabled} mode="sign-in" />
+            <SignIn githubAuthEnabled={githubAuthEnabled} mode="sign-up" />
           </div>
         </section>
       </div>

@@ -91,6 +91,11 @@ export const workspace = pgTable(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     slug: text("slug").notNull().unique(),
+    feedbackAccess: text("feedback_access").notNull().default("private"),
+    primaryGoal: text("primary_goal")
+      .notNull()
+      .default("capture_manage_feedback"),
+    onboardingCompletedAt: timestamp("onboarding_completed_at"),
     createdByUserId: text("created_by_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -101,6 +106,14 @@ export const workspace = pgTable(
       .notNull(),
   },
   (table) => [
+    check(
+      "workspace_feedback_access_check",
+      sql`${table.feedbackAccess} in ('public', 'private')`,
+    ),
+    check(
+      "workspace_primary_goal_check",
+      sql`${table.primaryGoal} in ('capture_manage_feedback')`,
+    ),
     index("workspace_created_by_user_id_idx").on(table.createdByUserId),
   ],
 );

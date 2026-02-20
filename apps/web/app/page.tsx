@@ -32,7 +32,7 @@ export default function Page() {
           </div>
         </div>
 
-        <header className="mt-4 bg-white/72 backdrop-blur-xl">
+        <header className="relative z-30 mt-4 bg-white/72 backdrop-blur-xl">
           <div className="mx-auto grid w-full max-w-[1240px] grid-cols-[auto_1fr_auto] items-center px-6 py-3 md:px-8">
             <Link
               href="/"
@@ -65,17 +65,18 @@ export default function Page() {
                 Login
               </Link>
               <FancyButton.Root
+                asChild
                 variant="neutral"
                 size="small"
                 className="h-10 bg-black px-5 text-[14px] font-semibold text-white"
               >
-                <Link href="/sign-in">Sign up</Link>
+                <Link href="/sign-up">Sign up</Link>
               </FancyButton.Root>
             </div>
           </div>
         </header>
 
-        <section className="mx-auto flex w-full max-w-[1520px] flex-1 -translate-y-8 flex-col items-center justify-center px-5 pb-16 pt-10 text-center md:-translate-y-14 md:px-8 md:pb-24 md:pt-12">
+        <section className="relative z-10 mx-auto flex w-full max-w-[1520px] flex-1 -translate-y-8 flex-col items-center justify-center px-5 pb-16 pt-10 text-center md:-translate-y-14 md:px-8 md:pb-24 md:pt-12">
           <h1 className="max-w-[1140px] text-balance [font-family:var(--font-hero-title),var(--font-sans),sans-serif] text-[44px] font-normal leading-[108%] tracking-[-0.035em] md:text-[70px] md:font-medium">
             Modern support &amp; feedback without absurd per-seat pricing
           </h1>
