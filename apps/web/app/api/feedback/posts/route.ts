@@ -4,9 +4,7 @@ import { Effect } from "effect";
 import { auth } from "@/lib/auth";
 import { appRuntime } from "@/lib/runtime";
 import { getWorkspaceFromHeaders } from "@/lib/workspaces";
-import {
-  handleFeedbackError,
-} from "~/feedback/feedback.errors";
+import { handleFeedbackError } from "~/feedback/feedback.errors";
 import { decodeCreateFeedbackPostInput } from "~/feedback/feedback.schema";
 import { FeedbackService } from "~/feedback/feedback.service";
 import {
@@ -24,13 +22,10 @@ export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({ headers: request.headers });
   const anonCookie = request.cookies.get(FEEDBACK_ANON_COOKIE)?.value ?? null;
 
-  const program = Effect.gen(function* () {
-    const service = yield* FeedbackService;
-    return yield* service.getSnapshot({
-      workspaceId: workspace.id,
-      userId: session?.user?.id ?? null,
-      anonSessionId: isValidAnonSessionId(anonCookie) ? anonCookie : null,
-    });
+  const program = FeedbackService.getSnapshot({
+    workspaceId: workspace.id,
+    userId: session?.user?.id ?? null,
+    anonSessionId: isValidAnonSessionId(anonCookie) ? anonCookie : null,
   }).pipe(
     Effect.match({
       onSuccess: (snapshot) => NextResponse.json({ posts: snapshot.posts }),
@@ -69,8 +64,7 @@ export async function POST(request: NextRequest) {
 
   const program = Effect.gen(function* () {
     const input = yield* decodeCreateFeedbackPostInput(rawBody);
-    const service = yield* FeedbackService;
-    return yield* service.createPost({
+    return yield* FeedbackService.createPost({
       workspaceId: workspace.id,
       authorUserId: session.user.id,
       input,

@@ -4,13 +4,11 @@ import { notFound } from "next/navigation";
 import { HydrationBoundary } from "@tanstack/react-query";
 
 import { auth } from "@/lib/auth";
+import { appRuntime } from "@/lib/runtime";
 import { getWorkspaceBySlug } from "@/lib/workspaces";
 import { protocol, rootDomain } from "@/lib/utils";
 import { FeedbackDashboardShell } from "~/feedback/components/feedback-dashboard-shell";
-import {
-  getFeedbackSnapshot,
-  seedWorkspaceFeedbackDefaults,
-} from "~/feedback/lib/queries";
+import { FeedbackService } from "~/feedback/feedback.service";
 import {
   FEEDBACK_ANON_COOKIE,
   isValidAnonSessionId,
@@ -47,18 +45,22 @@ export default async function WorkspacePublicPage({
     notFound();
   }
 
-  await seedWorkspaceFeedbackDefaults(foundWorkspace.id);
+  await appRuntime.runPromise(
+    FeedbackService.seedWorkspaceDefaults({ workspaceId: foundWorkspace.id }),
+  );
 
   const requestHeaders = await headers();
   const cookieStore = await cookies();
   const session = await auth.api.getSession({ headers: requestHeaders });
   const anonCookie = cookieStore.get(FEEDBACK_ANON_COOKIE)?.value ?? null;
 
-  const snapshot = await getFeedbackSnapshot({
-    workspaceId: foundWorkspace.id,
-    userId: session?.user?.id ?? null,
-    anonSessionId: isValidAnonSessionId(anonCookie) ? anonCookie : null,
-  });
+  const snapshot = await appRuntime.runPromise(
+    FeedbackService.getSnapshot({
+      workspaceId: foundWorkspace.id,
+      userId: session?.user?.id ?? null,
+      anonSessionId: isValidAnonSessionId(anonCookie) ? anonCookie : null,
+    }),
+  );
 
   const workspaceSlug = `${foundWorkspace.slug}.${rootDomain}`;
   const postsHydrationState = buildPostsHydrationState(workspaceSlug, snapshot);

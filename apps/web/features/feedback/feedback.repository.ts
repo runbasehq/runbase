@@ -11,8 +11,8 @@ import {
   feedbackVote,
 } from "@/lib/db/schema";
 import {
-  enforceVotePerPostRateLimit,
-  enforceVoteRateLimit,
+  enforceVotePerPostRateLimit as enforceVotePerPostRateLimitIo,
+  enforceVoteRateLimit as enforceVoteRateLimitIo,
 } from "~/feedback/lib/rate-limit";
 import type {
   FeedbackBoardItem,
@@ -57,6 +57,10 @@ export interface FeedbackVoteRateLimitParams {
   ip: string;
 }
 
+export interface FeedbackSeedDefaultsParams {
+  workspaceId: string;
+}
+
 export interface FeedbackVoteResult {
   upvoteCount: number;
   viewerHasVoted: boolean;
@@ -66,9 +70,9 @@ export interface FeedbackVoteResult {
 function hasTag(error: unknown, tag: string): boolean {
   return Boolean(
     error &&
-      typeof error === "object" &&
-      "_tag" in error &&
-      (error as { _tag: unknown })._tag === tag,
+    typeof error === "object" &&
+    "_tag" in error &&
+    (error as { _tag: unknown })._tag === tag,
   );
 }
 
@@ -98,7 +102,10 @@ function slugifyTitle(value: string) {
 const toPersistenceError = (operation: string) =>
   new FeedbackPersistenceError({ operation });
 
-const fromPersistencePromise = <A>(operation: string, thunk: () => Promise<A>) =>
+const fromPersistencePromise = <A>(
+  operation: string,
+  thunk: () => Promise<A>,
+) =>
   Effect.tryPromise({
     try: thunk,
     catch: () => toPersistenceError(operation),
@@ -161,7 +168,10 @@ const resolveBoardId = (
 
 const resolveStatusId = (
   workspaceId: string,
-): Effect.Effect<string, FeedbackNoStatusConfigured | FeedbackPersistenceError> =>
+): Effect.Effect<
+  string,
+  FeedbackNoStatusConfigured | FeedbackPersistenceError
+> =>
   Effect.gen(function* () {
     const defaultStatus = yield* fromPersistencePromise(
       "feedback.resolveDefaultStatus",
@@ -190,7 +200,10 @@ const getPostCount = (workspaceId: string, postId: string) =>
       .select({ upvoteCount: feedbackPost.upvoteCount })
       .from(feedbackPost)
       .where(
-        and(eq(feedbackPost.workspaceId, workspaceId), eq(feedbackPost.id, postId)),
+        and(
+          eq(feedbackPost.workspaceId, workspaceId),
+          eq(feedbackPost.id, postId),
+        ),
       )
       .limit(1);
 
@@ -200,47 +213,194 @@ const getPostCount = (workspaceId: string, postId: string) =>
 export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
   "FeedbackRepository",
   {
-    effect: Effect.succeed({
-      getSnapshot: ({
-        workspaceId,
-        userId,
-        anonSessionId,
-      }: FeedbackSnapshotParams): Effect.Effect<
-        FeedbackSnapshot,
-        FeedbackPersistenceError
-      > =>
-        Effect.gen(function* () {
-          const [boards, statuses, posts] = yield* fromPersistencePromise(
-            "feedback.getSnapshot",
-            () =>
-              Promise.all([
-                db
-                  .select({
-                    id: feedbackBoard.id,
-                    name: feedbackBoard.name,
-                    slug: feedbackBoard.slug,
-                    description: feedbackBoard.description,
-                    isDefault: feedbackBoard.isDefault,
-                  })
-                  .from(feedbackBoard)
-                  .where(eq(feedbackBoard.workspaceId, workspaceId))
-                  .orderBy(
-                    desc(feedbackBoard.isDefault),
-                    asc(feedbackBoard.createdAt),
-                  ),
-                db
-                  .select({
-                    id: feedbackStatus.id,
-                    key: feedbackStatus.key,
-                    label: feedbackStatus.label,
-                    color: feedbackStatus.color,
-                    position: feedbackStatus.position,
-                    isClosed: feedbackStatus.isClosed,
-                  })
-                  .from(feedbackStatus)
-                  .where(eq(feedbackStatus.workspaceId, workspaceId))
-                  .orderBy(asc(feedbackStatus.position)),
-                db
+    accessors: true,
+    effect: Effect.gen(function* () {
+      const getSnapshot = Effect.fn("FeedbackRepository.getSnapshot")(
+        ({
+          workspaceId,
+          userId,
+          anonSessionId,
+        }: FeedbackSnapshotParams): Effect.Effect<
+          FeedbackSnapshot,
+          FeedbackPersistenceError
+        > =>
+          Effect.gen(function* () {
+            const [boards, statuses, posts] = yield* fromPersistencePromise(
+              "feedback.getSnapshot",
+              () =>
+                Promise.all([
+                  db
+                    .select({
+                      id: feedbackBoard.id,
+                      name: feedbackBoard.name,
+                      slug: feedbackBoard.slug,
+                      description: feedbackBoard.description,
+                      isDefault: feedbackBoard.isDefault,
+                    })
+                    .from(feedbackBoard)
+                    .where(eq(feedbackBoard.workspaceId, workspaceId))
+                    .orderBy(
+                      desc(feedbackBoard.isDefault),
+                      asc(feedbackBoard.createdAt),
+                    ),
+                  db
+                    .select({
+                      id: feedbackStatus.id,
+                      key: feedbackStatus.key,
+                      label: feedbackStatus.label,
+                      color: feedbackStatus.color,
+                      position: feedbackStatus.position,
+                      isClosed: feedbackStatus.isClosed,
+                    })
+                    .from(feedbackStatus)
+                    .where(eq(feedbackStatus.workspaceId, workspaceId))
+                    .orderBy(asc(feedbackStatus.position)),
+                  db
+                    .select({
+                      id: feedbackPost.id,
+                      boardId: feedbackPost.boardId,
+                      statusId: feedbackPost.statusId,
+                      title: feedbackPost.title,
+                      slug: feedbackPost.slug,
+                      content: feedbackPost.content,
+                      upvoteCount: feedbackPost.upvoteCount,
+                      commentCount: feedbackPost.commentCount,
+                      createdAt: feedbackPost.createdAt,
+                      statusLabel: feedbackStatus.label,
+                      statusKey: feedbackStatus.key,
+                      boardName: feedbackBoard.name,
+                    })
+                    .from(feedbackPost)
+                    .innerJoin(
+                      feedbackStatus,
+                      and(
+                        eq(
+                          feedbackPost.workspaceId,
+                          feedbackStatus.workspaceId,
+                        ),
+                        eq(feedbackPost.statusId, feedbackStatus.id),
+                      ),
+                    )
+                    .innerJoin(
+                      feedbackBoard,
+                      and(
+                        eq(feedbackPost.workspaceId, feedbackBoard.workspaceId),
+                        eq(feedbackPost.boardId, feedbackBoard.id),
+                      ),
+                    )
+                    .where(eq(feedbackPost.workspaceId, workspaceId))
+                    .orderBy(
+                      desc(feedbackPost.upvoteCount),
+                      desc(feedbackPost.createdAt),
+                    ),
+                ]),
+            );
+
+            const postIds = posts.map((post) => post.id);
+            let votedPostIds = new Set<string>();
+
+            if (postIds.length && (userId || anonSessionId)) {
+              const votePredicate = userId
+                ? eq(feedbackVote.userId, userId)
+                : eq(feedbackVote.anonSessionId, anonSessionId!);
+
+              const viewerVotes = yield* fromPersistencePromise(
+                "feedback.getSnapshot.viewerVotes",
+                async () =>
+                  db
+                    .select({ postId: feedbackVote.postId })
+                    .from(feedbackVote)
+                    .where(
+                      and(
+                        eq(feedbackVote.workspaceId, workspaceId),
+                        inArray(feedbackVote.postId, postIds),
+                        votePredicate,
+                      ),
+                    ),
+              );
+
+              votedPostIds = new Set(viewerVotes.map((vote) => vote.postId));
+            }
+
+            return {
+              boards: boards satisfies FeedbackBoardItem[],
+              statuses: statuses satisfies FeedbackStatusItem[],
+              posts: posts.map((post) => ({
+                ...post,
+                viewerHasVoted: votedPostIds.has(post.id),
+              })) satisfies FeedbackPostItem[],
+            };
+          }),
+      );
+      const createPost = Effect.fn("FeedbackRepository.createPost")(
+        ({
+          workspaceId,
+          authorUserId,
+          input,
+        }: CreateFeedbackPostParams): Effect.Effect<
+          FeedbackPostItem,
+          | FeedbackInvalidBoard
+          | FeedbackNoBoardConfigured
+          | FeedbackNoStatusConfigured
+          | FeedbackSlugGenerationFailed
+          | FeedbackPersistenceError
+        > =>
+          Effect.gen(function* () {
+            const boardId = yield* resolveBoardId(workspaceId, input.boardId);
+            const statusId = yield* resolveStatusId(workspaceId);
+            const baseSlug = slugifyTitle(input.title);
+
+            const createdPostId = yield* Effect.tryPromise({
+              try: async () => {
+                for (let attempt = 0; attempt < 10; attempt += 1) {
+                  const slug =
+                    attempt === 0 ? baseSlug : `${baseSlug}-${attempt + 1}`;
+
+                  try {
+                    const [inserted] = await db
+                      .insert(feedbackPost)
+                      .values({
+                        id: crypto.randomUUID(),
+                        workspaceId,
+                        boardId,
+                        statusId,
+                        authorUserId,
+                        title: input.title,
+                        slug,
+                        content: input.content,
+                        publishedAt: new Date(),
+                      })
+                      .returning({ id: feedbackPost.id });
+
+                    return inserted.id;
+                  } catch (error) {
+                    if (isUniqueViolationError(error)) {
+                      continue;
+                    }
+
+                    throw toPersistenceError("feedback.createPost.insert");
+                  }
+                }
+
+                throw new FeedbackSlugGenerationFailed();
+              },
+              catch: (cause) => {
+                if (hasTag(cause, "FeedbackSlugGenerationFailed")) {
+                  return cause as FeedbackSlugGenerationFailed;
+                }
+
+                if (hasTag(cause, "FeedbackPersistenceError")) {
+                  return cause as FeedbackPersistenceError;
+                }
+
+                return toPersistenceError("feedback.createPost.insert");
+              },
+            });
+
+            const createdPost = yield* fromPersistencePromise(
+              "feedback.createPost.select",
+              async () => {
+                const [result] = await db
                   .select({
                     id: feedbackPost.id,
                     boardId: feedbackPost.boardId,
@@ -270,335 +430,312 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
                       eq(feedbackPost.boardId, feedbackBoard.id),
                     ),
                   )
-                  .where(eq(feedbackPost.workspaceId, workspaceId))
-                  .orderBy(
-                    desc(feedbackPost.upvoteCount),
-                    desc(feedbackPost.createdAt),
-                  ),
-              ]),
-          );
+                  .where(eq(feedbackPost.id, createdPostId))
+                  .limit(1);
 
-          const postIds = posts.map((post) => post.id);
-          let votedPostIds = new Set<string>();
+                return result ?? null;
+              },
+            );
 
-          if (postIds.length && (userId || anonSessionId)) {
-            const votePredicate = userId
-              ? eq(feedbackVote.userId, userId)
-              : eq(feedbackVote.anonSessionId, anonSessionId!);
+            if (!createdPost) {
+              return yield* toPersistenceError(
+                "feedback.createPost.createdPostMissing",
+              );
+            }
 
-            const viewerVotes = yield* fromPersistencePromise(
-              "feedback.getSnapshot.viewerVotes",
+            return {
+              ...createdPost,
+              viewerHasVoted: false,
+            } satisfies FeedbackPostItem;
+          }),
+      );
+      const enforceVoteRateLimit = Effect.fn(
+        "FeedbackRepository.enforceVoteRateLimit",
+      )(
+        ({
+          workspaceId,
+          postId,
+          ip,
+        }: FeedbackVoteRateLimitParams): Effect.Effect<
+          void,
+          FeedbackRateLimited | FeedbackPersistenceError
+        > =>
+          Effect.gen(function* () {
+            const [workspaceLimit, postLimit] = yield* fromPersistencePromise(
+              "feedback.enforceVoteRateLimit",
+              () =>
+                Promise.all([
+                  enforceVoteRateLimitIo(workspaceId, ip),
+                  enforceVotePerPostRateLimitIo(workspaceId, ip, postId),
+                ]),
+            );
+
+            if (!workspaceLimit.success || !postLimit.success) {
+              return yield* new FeedbackRateLimited({
+                workspaceRemaining:
+                  typeof workspaceLimit.remaining === "number"
+                    ? workspaceLimit.remaining
+                    : null,
+                postRemaining:
+                  typeof postLimit.remaining === "number"
+                    ? postLimit.remaining
+                    : null,
+              });
+            }
+
+            return;
+          }),
+      );
+      const seedWorkspaceDefaults = Effect.fn(
+        "FeedbackRepository.seedWorkspaceDefaults",
+      )(
+        ({
+          workspaceId,
+        }: FeedbackSeedDefaultsParams): Effect.Effect<
+          void,
+          FeedbackPersistenceError
+        > =>
+          Effect.gen(function* () {
+            const [existingBoard] = yield* fromPersistencePromise(
+              "feedback.seedWorkspaceDefaults.findBoard",
+              () =>
+                db
+                  .select({ id: feedbackBoard.id })
+                  .from(feedbackBoard)
+                  .where(eq(feedbackBoard.workspaceId, workspaceId))
+                  .limit(1),
+            );
+
+            if (!existingBoard) {
+              yield* fromPersistencePromise(
+                "feedback.seedWorkspaceDefaults.insertBoard",
+                () =>
+                  db.insert(feedbackBoard).values({
+                    id: crypto.randomUUID(),
+                    workspaceId,
+                    name: "Feature requests",
+                    slug: "feature-requests",
+                    description: "Tell us what we should build next.",
+                    isDefault: true,
+                  }),
+              );
+            }
+
+            const [existingStatus] = yield* fromPersistencePromise(
+              "feedback.seedWorkspaceDefaults.findStatus",
+              () =>
+                db
+                  .select({ id: feedbackStatus.id })
+                  .from(feedbackStatus)
+                  .where(eq(feedbackStatus.workspaceId, workspaceId))
+                  .limit(1),
+            );
+
+            if (existingStatus) {
+              return;
+            }
+
+            yield* fromPersistencePromise(
+              "feedback.seedWorkspaceDefaults.insertStatuses",
+              () =>
+                db.insert(feedbackStatus).values([
+                  {
+                    id: crypto.randomUUID(),
+                    workspaceId,
+                    key: "open",
+                    label: "Open",
+                    color: "#0ea5e9",
+                    position: 0,
+                    isDefault: true,
+                    isClosed: false,
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    workspaceId,
+                    key: "planned",
+                    label: "Planned",
+                    color: "#f59e0b",
+                    position: 1,
+                    isDefault: false,
+                    isClosed: false,
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    workspaceId,
+                    key: "in_progress",
+                    label: "In progress",
+                    color: "#2563eb",
+                    position: 2,
+                    isDefault: false,
+                    isClosed: false,
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    workspaceId,
+                    key: "completed",
+                    label: "Completed",
+                    color: "#16a34a",
+                    position: 3,
+                    isDefault: false,
+                    isClosed: true,
+                  },
+                ]),
+            );
+          }),
+      );
+      const voteForPost = Effect.fn("FeedbackRepository.voteForPost")(
+        ({
+          workspaceId,
+          postId,
+          identity,
+        }: FeedbackVoteParams): Effect.Effect<
+          FeedbackVoteResult,
+          FeedbackPostNotFound | FeedbackPersistenceError
+        > =>
+          Effect.gen(function* () {
+            const existingCount = yield* getPostCount(workspaceId, postId);
+
+            if (existingCount === null) {
+              return yield* new FeedbackPostNotFound({ postId });
+            }
+
+            const insertedVotes = yield* fromPersistencePromise(
+              "feedback.voteForPost.insertVote",
               async () =>
                 db
-                  .select({ postId: feedbackVote.postId })
+                  .insert(feedbackVote)
+                  .values({
+                    id: crypto.randomUUID(),
+                    workspaceId,
+                    postId,
+                    userId: identity.userId,
+                    anonSessionId: identity.anonSessionId,
+                  })
+                  .onConflictDoNothing()
+                  .returning({ id: feedbackVote.id }),
+            );
+
+            if (insertedVotes.length) {
+              yield* fromPersistencePromise(
+                "feedback.voteForPost.bumpPostCount",
+                () =>
+                  db
+                    .update(feedbackPost)
+                    .set({
+                      upvoteCount: sql`${feedbackPost.upvoteCount} + 1`,
+                    })
+                    .where(
+                      and(
+                        eq(feedbackPost.workspaceId, workspaceId),
+                        eq(feedbackPost.id, postId),
+                      ),
+                    ),
+              );
+            }
+
+            const upvoteCount = yield* getPostCount(workspaceId, postId);
+
+            if (upvoteCount === null) {
+              return yield* new FeedbackPostNotFound({ postId });
+            }
+
+            return {
+              upvoteCount,
+              viewerHasVoted: true,
+              alreadyVoted: insertedVotes.length === 0,
+            };
+          }),
+      );
+      const unvoteForPost = Effect.fn("FeedbackRepository.unvoteForPost")(
+        ({
+          workspaceId,
+          postId,
+          identity,
+        }: FeedbackVoteParams): Effect.Effect<
+          FeedbackVoteResult,
+          FeedbackPostNotFound | FeedbackPersistenceError
+        > =>
+          Effect.gen(function* () {
+            const voterPredicate = identity.userId
+              ? eq(feedbackVote.userId, identity.userId)
+              : eq(feedbackVote.anonSessionId, identity.anonSessionId!);
+
+            const deletedVotes = yield* fromPersistencePromise(
+              "feedback.unvoteForPost.deleteVote",
+              async () =>
+                db
+                  .delete(feedbackVote)
+                  .where(
+                    and(
+                      eq(feedbackVote.workspaceId, workspaceId),
+                      eq(feedbackVote.postId, postId),
+                      voterPredicate,
+                    ),
+                  )
+                  .returning({ id: feedbackVote.id }),
+            );
+
+            if (deletedVotes.length) {
+              yield* fromPersistencePromise(
+                "feedback.unvoteForPost.decrementPostCount",
+                () =>
+                  db
+                    .update(feedbackPost)
+                    .set({
+                      upvoteCount: sql`greatest(${feedbackPost.upvoteCount} - 1, 0)`,
+                    })
+                    .where(
+                      and(
+                        eq(feedbackPost.workspaceId, workspaceId),
+                        eq(feedbackPost.id, postId),
+                      ),
+                    ),
+              );
+            }
+
+            const upvoteCount = yield* getPostCount(workspaceId, postId);
+
+            if (upvoteCount === null) {
+              return yield* new FeedbackPostNotFound({ postId });
+            }
+
+            const [vote] = yield* fromPersistencePromise(
+              "feedback.unvoteForPost.viewerVoteState",
+              () => {
+                const votePredicate = identity.userId
+                  ? eq(feedbackVote.userId, identity.userId)
+                  : eq(feedbackVote.anonSessionId, identity.anonSessionId!);
+
+                return db
+                  .select({ id: feedbackVote.id })
                   .from(feedbackVote)
                   .where(
                     and(
                       eq(feedbackVote.workspaceId, workspaceId),
-                      inArray(feedbackVote.postId, postIds),
+                      eq(feedbackVote.postId, postId),
                       votePredicate,
                     ),
-                  ),
+                  )
+                  .limit(1);
+              },
             );
 
-            votedPostIds = new Set(viewerVotes.map((vote) => vote.postId));
-          }
+            return {
+              upvoteCount,
+              viewerHasVoted: Boolean(vote),
+              alreadyVoted: false,
+            };
+          }),
+      );
 
-          return {
-            boards: boards satisfies FeedbackBoardItem[],
-            statuses: statuses satisfies FeedbackStatusItem[],
-            posts: posts.map((post) => ({
-              ...post,
-              viewerHasVoted: votedPostIds.has(post.id),
-            })) satisfies FeedbackPostItem[],
-          };
-        }),
-      createPost: ({
-        workspaceId,
-        authorUserId,
-        input,
-      }: CreateFeedbackPostParams): Effect.Effect<
-        FeedbackPostItem,
-        | FeedbackInvalidBoard
-        | FeedbackNoBoardConfigured
-        | FeedbackNoStatusConfigured
-        | FeedbackSlugGenerationFailed
-        | FeedbackPersistenceError
-      > =>
-        Effect.gen(function* () {
-          const boardId = yield* resolveBoardId(workspaceId, input.boardId);
-          const statusId = yield* resolveStatusId(workspaceId);
-          const baseSlug = slugifyTitle(input.title);
-
-          const createdPostId = yield* Effect.tryPromise({
-            try: async () => {
-              for (let attempt = 0; attempt < 10; attempt += 1) {
-                const slug =
-                  attempt === 0 ? baseSlug : `${baseSlug}-${attempt + 1}`;
-
-                try {
-                  const [inserted] = await db
-                    .insert(feedbackPost)
-                    .values({
-                      id: crypto.randomUUID(),
-                      workspaceId,
-                      boardId,
-                      statusId,
-                      authorUserId,
-                      title: input.title,
-                      slug,
-                      content: input.content,
-                      publishedAt: new Date(),
-                    })
-                    .returning({ id: feedbackPost.id });
-
-                  return inserted.id;
-                } catch (error) {
-                  if (isUniqueViolationError(error)) {
-                    continue;
-                  }
-
-                  throw toPersistenceError("feedback.createPost.insert");
-                }
-              }
-
-              throw new FeedbackSlugGenerationFailed();
-            },
-            catch: (cause) => {
-              if (hasTag(cause, "FeedbackSlugGenerationFailed")) {
-                return cause as FeedbackSlugGenerationFailed;
-              }
-
-              if (hasTag(cause, "FeedbackPersistenceError")) {
-                return cause as FeedbackPersistenceError;
-              }
-
-              return toPersistenceError("feedback.createPost.insert");
-            },
-          });
-
-          const createdPost = yield* fromPersistencePromise(
-            "feedback.createPost.select",
-            async () => {
-              const [result] = await db
-                .select({
-                  id: feedbackPost.id,
-                  boardId: feedbackPost.boardId,
-                  statusId: feedbackPost.statusId,
-                  title: feedbackPost.title,
-                  slug: feedbackPost.slug,
-                  content: feedbackPost.content,
-                  upvoteCount: feedbackPost.upvoteCount,
-                  commentCount: feedbackPost.commentCount,
-                  createdAt: feedbackPost.createdAt,
-                  statusLabel: feedbackStatus.label,
-                  statusKey: feedbackStatus.key,
-                  boardName: feedbackBoard.name,
-                })
-                .from(feedbackPost)
-                .innerJoin(
-                  feedbackStatus,
-                  and(
-                    eq(feedbackPost.workspaceId, feedbackStatus.workspaceId),
-                    eq(feedbackPost.statusId, feedbackStatus.id),
-                  ),
-                )
-                .innerJoin(
-                  feedbackBoard,
-                  and(
-                    eq(feedbackPost.workspaceId, feedbackBoard.workspaceId),
-                    eq(feedbackPost.boardId, feedbackBoard.id),
-                  ),
-                )
-                .where(eq(feedbackPost.id, createdPostId))
-                .limit(1);
-
-              return result ?? null;
-            },
-          );
-
-          if (!createdPost) {
-            return yield* toPersistenceError(
-              "feedback.createPost.createdPostMissing",
-            );
-          }
-
-          return {
-            ...createdPost,
-            viewerHasVoted: false,
-          } satisfies FeedbackPostItem;
-        }),
-      enforceVoteRateLimit: ({
-        workspaceId,
-        postId,
-        ip,
-      }: FeedbackVoteRateLimitParams): Effect.Effect<
-        void,
-        FeedbackRateLimited | FeedbackPersistenceError
-      > =>
-        Effect.gen(function* () {
-          const [workspaceLimit, postLimit] = yield* fromPersistencePromise(
-            "feedback.enforceVoteRateLimit",
-            () =>
-              Promise.all([
-                enforceVoteRateLimit(workspaceId, ip),
-                enforceVotePerPostRateLimit(workspaceId, ip, postId),
-              ]),
-          );
-
-          if (!workspaceLimit.success || !postLimit.success) {
-            return yield* new FeedbackRateLimited({
-              workspaceRemaining:
-                typeof workspaceLimit.remaining === "number"
-                  ? workspaceLimit.remaining
-                  : null,
-              postRemaining:
-                typeof postLimit.remaining === "number"
-                  ? postLimit.remaining
-                  : null,
-            });
-          }
-
-          return;
-        }),
-      voteForPost: ({
-        workspaceId,
-        postId,
-        identity,
-      }: FeedbackVoteParams): Effect.Effect<
-        FeedbackVoteResult,
-        FeedbackPostNotFound | FeedbackPersistenceError
-      > =>
-        Effect.gen(function* () {
-          const existingCount = yield* getPostCount(workspaceId, postId);
-
-          if (existingCount === null) {
-            return yield* new FeedbackPostNotFound({ postId });
-          }
-
-          const insertedVotes = yield* fromPersistencePromise(
-            "feedback.voteForPost.insertVote",
-            async () =>
-              db
-                .insert(feedbackVote)
-                .values({
-                  id: crypto.randomUUID(),
-                  workspaceId,
-                  postId,
-                  userId: identity.userId,
-                  anonSessionId: identity.anonSessionId,
-                })
-                .onConflictDoNothing()
-                .returning({ id: feedbackVote.id }),
-          );
-
-          if (insertedVotes.length) {
-            yield* fromPersistencePromise("feedback.voteForPost.bumpPostCount", () =>
-              db
-                .update(feedbackPost)
-                .set({
-                  upvoteCount: sql`${feedbackPost.upvoteCount} + 1`,
-                })
-                .where(
-                  and(
-                    eq(feedbackPost.workspaceId, workspaceId),
-                    eq(feedbackPost.id, postId),
-                  ),
-                ),
-            );
-          }
-
-          const upvoteCount = yield* getPostCount(workspaceId, postId);
-
-          if (upvoteCount === null) {
-            return yield* new FeedbackPostNotFound({ postId });
-          }
-
-          return {
-            upvoteCount,
-            viewerHasVoted: true,
-            alreadyVoted: insertedVotes.length === 0,
-          };
-        }),
-      unvoteForPost: ({
-        workspaceId,
-        postId,
-        identity,
-      }: FeedbackVoteParams): Effect.Effect<
-        FeedbackVoteResult,
-        FeedbackPostNotFound | FeedbackPersistenceError
-      > =>
-        Effect.gen(function* () {
-          const voterPredicate = identity.userId
-            ? eq(feedbackVote.userId, identity.userId)
-            : eq(feedbackVote.anonSessionId, identity.anonSessionId!);
-
-          const deletedVotes = yield* fromPersistencePromise(
-            "feedback.unvoteForPost.deleteVote",
-            async () =>
-              db
-                .delete(feedbackVote)
-                .where(
-                  and(
-                    eq(feedbackVote.workspaceId, workspaceId),
-                    eq(feedbackVote.postId, postId),
-                    voterPredicate,
-                  ),
-                )
-                .returning({ id: feedbackVote.id }),
-          );
-
-          if (deletedVotes.length) {
-            yield* fromPersistencePromise(
-              "feedback.unvoteForPost.decrementPostCount",
-              () =>
-                db
-                  .update(feedbackPost)
-                  .set({
-                    upvoteCount: sql`greatest(${feedbackPost.upvoteCount} - 1, 0)`,
-                  })
-                  .where(
-                    and(
-                      eq(feedbackPost.workspaceId, workspaceId),
-                      eq(feedbackPost.id, postId),
-                    ),
-                  ),
-            );
-          }
-
-          const upvoteCount = yield* getPostCount(workspaceId, postId);
-
-          if (upvoteCount === null) {
-            return yield* new FeedbackPostNotFound({ postId });
-          }
-
-          const [vote] = yield* fromPersistencePromise(
-            "feedback.unvoteForPost.viewerVoteState",
-            () => {
-              const votePredicate = identity.userId
-                ? eq(feedbackVote.userId, identity.userId)
-                : eq(feedbackVote.anonSessionId, identity.anonSessionId!);
-
-              return db
-                .select({ id: feedbackVote.id })
-                .from(feedbackVote)
-                .where(
-                  and(
-                    eq(feedbackVote.workspaceId, workspaceId),
-                    eq(feedbackVote.postId, postId),
-                    votePredicate,
-                  ),
-                )
-                .limit(1);
-            },
-          );
-
-          return {
-            upvoteCount,
-            viewerHasVoted: Boolean(vote),
-            alreadyVoted: false,
-          };
-        }),
+      return {
+        getSnapshot,
+        createPost,
+        enforceVoteRateLimit,
+        seedWorkspaceDefaults,
+        voteForPost,
+        unvoteForPost,
+      };
     }),
   },
 ) {}

@@ -15,6 +15,8 @@
 ## Dependency Injection and Errors
 
 - Use `Effect.Service` + `Layer` for services/repositories.
+- Services and repositories must define `accessors: true`.
+- Service and repository methods should be declared with `Effect.fn("FeatureName.methodName")`.
 - Declare typed feature errors in `x.errors.ts`; map errors to HTTP only in route handlers.
 - Validate/decode boundary payloads with feature `x.schema.ts`.
 
@@ -22,6 +24,7 @@
 
 - Runtime wiring: create/reuse module-level `ManagedRuntime` instances in `lib/runtime.ts`.
 - Route flow: parse transport input, decode using `x.schema.ts`, call `x.service.ts`, map `x.errors.ts` to HTTP.
+- Route flow must call service accessors (`FeatureService.method(...)`) and must not resolve service tags via `yield* FeatureService`.
 - Service flow: orchestrate business rules and cross-feature dependencies only through service/repository tags.
 - Repository flow: keep all Drizzle and external provider calls in `x.repository.ts`; do not import Drizzle in routes/services.
 - Error scaling rule: each feature owns its own error union/handler; do not introduce a global error union shared by all features.
