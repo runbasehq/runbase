@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Effect } from "effect";
 
 import { auth } from "@/lib/auth";
+import { appRuntime } from "@/lib/runtime";
 import { getWorkspaceFromHeaders } from "@/lib/workspaces";
-import { getFeedbackSnapshot } from "~/feedback";
 import {
-  CreateFeedbackPostError,
-  createFeedbackPost,
-} from "~/feedback/lib/services/create-feedback-post";
+  handleFeedbackError,
+} from "~/feedback/feedback.errors";
+import { decodeCreateFeedbackPostInput } from "~/feedback/feedback.schema";
+import { FeedbackService } from "~/feedback/feedback.service";
 import {
   FEEDBACK_ANON_COOKIE,
   isValidAnonSessionId,
 } from "~/feedback/lib/vote-session";
-import { parseCreateFeedbackPostInput } from "~/feedback/schemas/create-feedback-post";
 
 export async function GET(request: NextRequest) {
   const workspace = await getWorkspaceFromHeaders(request.headers);
@@ -23,13 +24,21 @@ export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({ headers: request.headers });
   const anonCookie = request.cookies.get(FEEDBACK_ANON_COOKIE)?.value ?? null;
 
-  const snapshot = await getFeedbackSnapshot({
-    workspaceId: workspace.id,
-    userId: session?.user?.id ?? null,
-    anonSessionId: isValidAnonSessionId(anonCookie) ? anonCookie : null,
-  });
+  const program = Effect.gen(function* () {
+    const service = yield* FeedbackService;
+    return yield* service.getSnapshot({
+      workspaceId: workspace.id,
+      userId: session?.user?.id ?? null,
+      anonSessionId: isValidAnonSessionId(anonCookie) ? anonCookie : null,
+    });
+  }).pipe(
+    Effect.match({
+      onSuccess: (snapshot) => NextResponse.json({ posts: snapshot.posts }),
+      onFailure: handleFeedbackError,
+    }),
+  );
 
-  return NextResponse.json({ posts: snapshot.posts });
+  return appRuntime.runPromise(program);
 }
 
 export async function POST(request: NextRequest) {
@@ -48,9 +57,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: unknown;
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json(
       { error: "Invalid request body" },
@@ -58,31 +67,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data, error } = parseCreateFeedbackPostInput(body);
-
-  if (error || !data) {
-    return NextResponse.json(
-      { error: error || "Invalid input" },
-      { status: 400 },
-    );
-  }
-
-  try {
-    const post = await createFeedbackPost({
+  const program = Effect.gen(function* () {
+    const input = yield* decodeCreateFeedbackPostInput(rawBody);
+    const service = yield* FeedbackService;
+    return yield* service.createPost({
       workspaceId: workspace.id,
       authorUserId: session.user.id,
-      input: data,
+      input,
     });
+  }).pipe(
+    Effect.match({
+      onSuccess: (post) => NextResponse.json({ post }, { status: 201 }),
+      onFailure: handleFeedbackError,
+    }),
+  );
 
-    return NextResponse.json({ post }, { status: 201 });
-  } catch (createError) {
-    if (createError instanceof CreateFeedbackPostError) {
-      return NextResponse.json(
-        { error: createError.message },
-        { status: createError.status },
-      );
-    }
-
-    throw createError;
-  }
+  return appRuntime.runPromise(program);
 }

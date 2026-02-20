@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Effect } from "effect";
 
 import { auth } from "@/lib/auth";
+import { appRuntime } from "@/lib/runtime";
 import { getWorkspaceFromHeaders } from "@/lib/workspaces";
 import {
-  enforceVotePerPostRateLimit,
-  enforceVoteRateLimit,
-} from "~/feedback/lib/rate-limit";
+  handleFeedbackError,
+} from "~/feedback/feedback.errors";
+import { FeedbackService } from "~/feedback/feedback.service";
 import {
   getAnonVoteCookieConfig,
   getAnonVoteSession,
 } from "~/feedback/lib/vote-session";
 import type { VoteIdentity } from "~/feedback/lib/types";
-import { unvoteForPost, voteForPost } from "~/feedback/lib/vote-service";
 
 function getClientIp(request: NextRequest) {
   const forwardedFor = request.headers.get("x-forwarded-for");
@@ -50,22 +51,6 @@ export async function POST(
   const session = await auth.api.getSession({ headers: request.headers });
   const ip = getClientIp(request);
 
-  const [workspaceLimit, postLimit] = await Promise.all([
-    enforceVoteRateLimit(workspace.id, ip),
-    enforceVotePerPostRateLimit(workspace.id, ip, postId),
-  ]);
-
-  if (!workspaceLimit.success || !postLimit.success) {
-    return NextResponse.json(
-      {
-        error: "Too many votes",
-        workspaceRemaining: workspaceLimit.remaining,
-        postRemaining: postLimit.remaining,
-      },
-      { status: 429 },
-    );
-  }
-
   const anonSession = session?.user
     ? { anonSessionId: null, isNew: false }
     : getAnonVoteSession(request);
@@ -73,21 +58,28 @@ export async function POST(
     ? { userId: session.user.id, anonSessionId: null }
     : { userId: null, anonSessionId: anonSession.anonSessionId! };
 
-  const result = await voteForPost({
-    workspaceId: workspace.id,
-    postId,
-    identity,
-  });
+  const program = Effect.gen(function* () {
+    const service = yield* FeedbackService;
+    return yield* service.voteForPost({
+      workspaceId: workspace.id,
+      postId,
+      identity,
+      ip,
+    });
+  }).pipe(
+    Effect.match({
+      onSuccess: (result) => {
+        const response = NextResponse.json(result, {
+          status: result.alreadyVoted ? 200 : 201,
+        });
 
-  if (!result) {
-    return NextResponse.json({ error: "Post not found" }, { status: 404 });
-  }
+        return withAnonCookie(response, anonSession.anonSessionId, !session?.user);
+      },
+      onFailure: handleFeedbackError,
+    }),
+  );
 
-  const response = NextResponse.json(result, {
-    status: result.alreadyVoted ? 200 : 201,
-  });
-
-  return withAnonCookie(response, anonSession.anonSessionId, !session?.user);
+  return appRuntime.runPromise(program);
 }
 
 export async function DELETE(
@@ -109,16 +101,22 @@ export async function DELETE(
     ? { userId: session.user.id, anonSessionId: null }
     : { userId: null, anonSessionId: anonSession.anonSessionId! };
 
-  const result = await unvoteForPost({
-    workspaceId: workspace.id,
-    postId,
-    identity,
-  });
+  const program = Effect.gen(function* () {
+    const service = yield* FeedbackService;
+    return yield* service.unvoteForPost({
+      workspaceId: workspace.id,
+      postId,
+      identity,
+    });
+  }).pipe(
+    Effect.match({
+      onSuccess: (result) => {
+        const response = NextResponse.json(result);
+        return withAnonCookie(response, anonSession.anonSessionId, !session?.user);
+      },
+      onFailure: handleFeedbackError,
+    }),
+  );
 
-  if (!result) {
-    return NextResponse.json({ error: "Post not found" }, { status: 404 });
-  }
-
-  const response = NextResponse.json(result);
-  return withAnonCookie(response, anonSession.anonSessionId, !session?.user);
+  return appRuntime.runPromise(program);
 }

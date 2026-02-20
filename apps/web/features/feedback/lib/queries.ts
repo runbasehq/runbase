@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import {
@@ -187,31 +187,4 @@ export async function seedWorkspaceFeedbackDefaults(workspaceId: string) {
       isClosed: true,
     },
   ]);
-}
-
-export async function getViewerVoteState(
-  workspaceId: string,
-  postId: string,
-  userId: string | null,
-  anonSessionId: string | null,
-) {
-  if (!userId && !anonSessionId) {
-    return false;
-  }
-
-  const [vote] = await db
-    .select({ id: feedbackVote.id })
-    .from(feedbackVote)
-    .where(
-      and(
-        eq(feedbackVote.workspaceId, workspaceId),
-        eq(feedbackVote.postId, postId),
-        userId
-          ? eq(feedbackVote.userId, userId)
-          : eq(feedbackVote.anonSessionId, anonSessionId!),
-      ),
-    )
-    .limit(1);
-
-  return Boolean(vote);
 }
