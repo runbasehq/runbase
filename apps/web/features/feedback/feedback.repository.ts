@@ -132,7 +132,7 @@ const resolveBoardId = (
       );
 
       if (!board) {
-        return yield* Effect.fail(new FeedbackInvalidBoard({ boardId }));
+        return yield* new FeedbackInvalidBoard({ boardId });
       }
 
       return board.id;
@@ -153,7 +153,7 @@ const resolveBoardId = (
     );
 
     if (!defaultBoard) {
-      return yield* Effect.fail(new FeedbackNoBoardConfigured());
+      return yield* new FeedbackNoBoardConfigured();
     }
 
     return defaultBoard.id;
@@ -178,7 +178,7 @@ const resolveStatusId = (
     );
 
     if (!defaultStatus) {
-      return yield* Effect.fail(new FeedbackNoStatusConfigured());
+      return yield* new FeedbackNoStatusConfigured();
     }
 
     return defaultStatus.id;
@@ -418,8 +418,8 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
           );
 
           if (!createdPost) {
-            return yield* Effect.fail(
-              toPersistenceError("feedback.createPost.createdPostMissing"),
+            return yield* toPersistenceError(
+              "feedback.createPost.createdPostMissing",
             );
           }
 
@@ -447,18 +447,16 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
           );
 
           if (!workspaceLimit.success || !postLimit.success) {
-            return yield* Effect.fail(
-              new FeedbackRateLimited({
-                workspaceRemaining:
-                  typeof workspaceLimit.remaining === "number"
-                    ? workspaceLimit.remaining
-                    : null,
-                postRemaining:
-                  typeof postLimit.remaining === "number"
-                    ? postLimit.remaining
-                    : null,
-              }),
-            );
+            return yield* new FeedbackRateLimited({
+              workspaceRemaining:
+                typeof workspaceLimit.remaining === "number"
+                  ? workspaceLimit.remaining
+                  : null,
+              postRemaining:
+                typeof postLimit.remaining === "number"
+                  ? postLimit.remaining
+                  : null,
+            });
           }
 
           return;
@@ -475,7 +473,7 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
           const existingCount = yield* getPostCount(workspaceId, postId);
 
           if (existingCount === null) {
-            return yield* Effect.fail(new FeedbackPostNotFound({ postId }));
+            return yield* new FeedbackPostNotFound({ postId });
           }
 
           const insertedVotes = yield* fromPersistencePromise(
@@ -513,7 +511,7 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
           const upvoteCount = yield* getPostCount(workspaceId, postId);
 
           if (upvoteCount === null) {
-            return yield* Effect.fail(new FeedbackPostNotFound({ postId }));
+            return yield* new FeedbackPostNotFound({ postId });
           }
 
           return {
@@ -571,7 +569,7 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
           const upvoteCount = yield* getPostCount(workspaceId, postId);
 
           if (upvoteCount === null) {
-            return yield* Effect.fail(new FeedbackPostNotFound({ postId }));
+            return yield* new FeedbackPostNotFound({ postId });
           }
 
           const [vote] = yield* fromPersistencePromise(

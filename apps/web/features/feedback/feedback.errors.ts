@@ -6,42 +6,42 @@ export class FeedbackInvalidInput extends Data.TaggedError(
   "FeedbackInvalidInput",
 )<{
   message: string;
-}> {}
+}> { }
 
 export class FeedbackInvalidBoard extends Data.TaggedError(
   "FeedbackInvalidBoard",
 )<{
   boardId: string;
-}> {}
+}> { }
 
 export class FeedbackNoBoardConfigured extends Data.TaggedError(
   "FeedbackNoBoardConfigured",
-)<{}> {}
+)<{}> { }
 
 export class FeedbackNoStatusConfigured extends Data.TaggedError(
   "FeedbackNoStatusConfigured",
-)<{}> {}
+)<{}> { }
 
 export class FeedbackSlugGenerationFailed extends Data.TaggedError(
   "FeedbackSlugGenerationFailed",
-)<{}> {}
+)<{}> { }
 
 export class FeedbackPostNotFound extends Data.TaggedError(
   "FeedbackPostNotFound",
 )<{
   postId: string;
-}> {}
+}> { }
 
 export class FeedbackRateLimited extends Data.TaggedError("FeedbackRateLimited")<{
   workspaceRemaining: number | null;
   postRemaining: number | null;
-}> {}
+}> { }
 
 export class FeedbackPersistenceError extends Data.TaggedError(
   "FeedbackPersistenceError",
 )<{
   operation: string;
-}> {}
+}> { }
 
 export type FeedbackRouteError =
   | ParseError

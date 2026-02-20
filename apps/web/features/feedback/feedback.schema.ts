@@ -31,31 +31,25 @@ export const decodeCreateFeedbackPostInput = (raw: unknown) =>
         : null;
 
     if (!title) {
-      return yield* Effect.fail(
-        new FeedbackInvalidInput({ message: "Title is required" }),
-      );
+      return yield* new FeedbackInvalidInput({ message: "Title is required" });
     }
 
     if (title.length > TITLE_MAX_LENGTH) {
-      return yield* Effect.fail(
-        new FeedbackInvalidInput({
-          message: `Title must be ${TITLE_MAX_LENGTH} characters or less`,
-        }),
-      );
+      return yield* new FeedbackInvalidInput({
+        message: `Title must be ${TITLE_MAX_LENGTH} characters or less`,
+      });
     }
 
     if (!content) {
-      return yield* Effect.fail(
-        new FeedbackInvalidInput({ message: "Description is required" }),
-      );
+      return yield* new FeedbackInvalidInput({
+        message: "Description is required",
+      });
     }
 
     if (content.length > CONTENT_MAX_LENGTH) {
-      return yield* Effect.fail(
-        new FeedbackInvalidInput({
-          message: `Description must be ${CONTENT_MAX_LENGTH} characters or less`,
-        }),
-      );
+      return yield* new FeedbackInvalidInput({
+        message: `Description must be ${CONTENT_MAX_LENGTH} characters or less`,
+      });
     }
 
     return {
