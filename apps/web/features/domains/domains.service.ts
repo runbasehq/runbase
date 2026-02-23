@@ -2,6 +2,13 @@ import "server-only";
 
 import { Effect, Either } from "effect";
 
+import type {
+  CustomDomain,
+  DomainDnsConfig,
+  DomainDnsInstructionRecord,
+  DomainVerificationRecord as DomainVerificationRecordDTO,
+} from "~/domains/lib/types";
+
 import {
   DomainAlreadyAssigned,
   DomainForbidden,
@@ -15,20 +22,123 @@ import type {
 } from "./domains.repository";
 import { DomainsRepository } from "./domains.repository";
 
-export interface CustomDomain {
-  domain: string;
-  verificationStatus: "pending" | "verified";
-  verificationRecords: DomainVerificationRecord[];
-  verifiedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
+const VERCEL_CNAME_TARGET = "cname.vercel-dns.com";
+const VERCEL_APEX_TARGET = "76.76.21.21";
+
+function inferRootDomain(domain: string) {
+  const labels = domain.split(".").filter(Boolean);
+
+  if (labels.length <= 2) {
+    return domain;
+  }
+
+  return labels.slice(-2).join(".");
+}
+
+function toRelativeRecordName(hostname: string, rootDomain: string) {
+  const normalizedHost = hostname.trim().toLowerCase().replace(/\.$/, "");
+  const normalizedRoot = rootDomain.trim().toLowerCase().replace(/\.$/, "");
+
+  if (!normalizedHost) {
+    return "@";
+  }
+
+  if (normalizedHost === normalizedRoot) {
+    return "@";
+  }
+
+  if (normalizedHost.endsWith(`.${normalizedRoot}`)) {
+    return normalizedHost.slice(0, -(normalizedRoot.length + 1));
+  }
+
+  return normalizedHost;
+}
+
+function toDnsInstructionRecord(
+  record: DomainVerificationRecord,
+  rootDomain: string,
+): DomainDnsInstructionRecord {
+  const type = record.type.toUpperCase();
+
+  return {
+    type: type === "A" || type === "CNAME" || type === "TXT" ? type : "TXT",
+    name: toRelativeRecordName(record.domain, rootDomain),
+    value: record.value,
+  };
+}
+
+function buildDnsConfig(
+  domain: string,
+  verificationRecords: DomainVerificationRecord[],
+): DomainDnsConfig {
+  const normalizedDomain = domain.trim().toLowerCase().replace(/\.$/, "");
+  const labels = normalizedDomain.split(".").filter(Boolean);
+  const isApex = labels.length <= 2;
+  const rootDomain = inferRootDomain(normalizedDomain);
+  const hostLabel = toRelativeRecordName(normalizedDomain, rootDomain);
+
+  const parsedRecords = verificationRecords.map((record) =>
+    toDnsInstructionRecord(record, rootDomain),
+  );
+
+  const providerCname = parsedRecords.find((record) => record.type === "CNAME");
+  const txtRecords = parsedRecords.filter((record) => record.type === "TXT");
+
+  return {
+    isApex,
+    recommendedType: isApex ? "A" : "CNAME",
+    hostLabel,
+    cnameRecord: {
+      type: "CNAME",
+      name: hostLabel,
+      value: providerCname?.value || VERCEL_CNAME_TARGET,
+    },
+    aRecords: [
+      {
+        type: "A",
+        name: "@",
+        value: VERCEL_APEX_TARGET,
+      },
+    ],
+    txtRecords,
+  };
+}
+
+function buildWarnings(
+  verificationRecords: DomainVerificationRecord[],
+  isVerified: boolean,
+) {
+  const warningSet = new Set<string>();
+
+  if (!isVerified) {
+    warningSet.add(
+      "DNS changes can take a few minutes to propagate. Keep existing records until verification succeeds.",
+    );
+  }
+
+  verificationRecords.forEach((record) => {
+    if (record.reason) {
+      warningSet.add(record.reason);
+    }
+  });
+
+  return Array.from(warningSet);
 }
 
 function toCustomDomain(record: WorkspaceDomainRecord): CustomDomain {
+  const verificationRecords: DomainVerificationRecordDTO[] =
+    record.verificationRecords;
+  const dnsConfig = buildDnsConfig(record.domain, verificationRecords);
+
   return {
     domain: record.domain,
     verificationStatus: record.verificationStatus,
-    verificationRecords: record.verificationRecords,
+    verificationRecords,
+    dnsConfig,
+    warnings: buildWarnings(
+      verificationRecords,
+      record.verificationStatus === "verified",
+    ),
     verifiedAt: record.verifiedAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
@@ -113,9 +223,7 @@ export class DomainsService extends Effect.Service<DomainsService>()(
             });
 
             return domains
-              .sort(
-                (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
-              )
+              .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
               .map(toCustomDomain);
           }),
       );
@@ -157,7 +265,10 @@ export class DomainsService extends Effect.Service<DomainsService>()(
             } else {
               const error = existingProviderStatusResult.left;
 
-              if (error._tag === "DomainProviderError" && error.status === 404) {
+              if (
+                error._tag === "DomainProviderError" &&
+                error.status === 404
+              ) {
                 existingProviderStatus = null;
               } else {
                 return yield* Effect.fail(error);
@@ -172,7 +283,10 @@ export class DomainsService extends Effect.Service<DomainsService>()(
               if (Either.isLeft(addDomainResult)) {
                 const error = addDomainResult.left;
 
-                if (error._tag === "DomainProviderError" && error.status === 409) {
+                if (
+                  error._tag === "DomainProviderError" &&
+                  error.status === 409
+                ) {
                   return yield* new DomainAlreadyAssigned({ domain });
                 }
 
@@ -240,7 +354,10 @@ export class DomainsService extends Effect.Service<DomainsService>()(
             if (Either.isLeft(verifyResult)) {
               const error = verifyResult.left;
 
-              if (error._tag === "DomainProviderError" && error.status === 404) {
+              if (
+                error._tag === "DomainProviderError" &&
+                error.status === 404
+              ) {
                 return yield* new DomainNotFound({ domain });
               }
 
@@ -307,7 +424,9 @@ export class DomainsService extends Effect.Service<DomainsService>()(
             if (Either.isLeft(removeResult)) {
               const error = removeResult.left;
 
-              if (!(error._tag === "DomainProviderError" && error.status === 404)) {
+              if (
+                !(error._tag === "DomainProviderError" && error.status === 404)
+              ) {
                 return yield* Effect.fail(error);
               }
             }
