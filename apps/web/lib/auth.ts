@@ -8,11 +8,30 @@ import { rootDomain } from "./utils";
 
 const betterAuthUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
 const betterAuthSecret = process.env.BETTER_AUTH_SECRET;
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 const githubClientId = process.env.GITHUB_CLIENT_ID;
 const githubClientSecret = process.env.GITHUB_CLIENT_SECRET;
-const authUrlProtocol = betterAuthUrl.startsWith("https://")
-  ? "https"
-  : "http";
+const authUrlProtocol = betterAuthUrl.startsWith("https://") ? "https" : "http";
+
+const socialProviders = {
+  ...(googleClientId && googleClientSecret
+    ? {
+        google: {
+          clientId: googleClientId,
+          clientSecret: googleClientSecret,
+        },
+      }
+    : {}),
+  ...(githubClientId && githubClientSecret
+    ? {
+        github: {
+          clientId: githubClientId,
+          clientSecret: githubClientSecret,
+        },
+      }
+    : {}),
+};
 
 if (!betterAuthSecret) {
   throw new Error("BETTER_AUTH_SECRET is required");
@@ -44,13 +63,6 @@ export const auth = betterAuth({
     enabled: true,
   },
   socialProviders:
-    githubClientId && githubClientSecret
-      ? {
-          github: {
-            clientId: githubClientId,
-            clientSecret: githubClientSecret,
-          },
-        }
-      : undefined,
+    Object.keys(socialProviders).length > 0 ? socialProviders : undefined,
   plugins: [nextCookies()],
 });

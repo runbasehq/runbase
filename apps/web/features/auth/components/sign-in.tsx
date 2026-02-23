@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -110,9 +111,11 @@ function buildAuthHref({
 
 export function SignIn({
   githubAuthEnabled,
+  googleAuthEnabled,
   mode,
 }: {
   githubAuthEnabled: boolean;
+  googleAuthEnabled: boolean;
   mode: AuthMode;
 }) {
   const router = useRouter();
@@ -136,8 +139,9 @@ export function SignIn({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [isGooglePending, setIsGooglePending] = useState(false);
   const [isGithubPending, setIsGithubPending] = useState(false);
-  const isActionPending = isPending || isGithubPending;
+  const isActionPending = isPending || isGooglePending || isGithubPending;
 
   const previewSlug = useMemo(
     () => sanitizeWorkspaceSlug(companyName),
@@ -236,6 +240,21 @@ export function SignIn({
 
     router.replace(targetPath);
     router.refresh();
+  }
+
+  async function handleGoogleSignIn() {
+    setError(null);
+    setIsGooglePending(true);
+
+    const { error: socialSignInError } = await authClient.signIn.social({
+      provider: "google",
+      callbackURL: nextPath,
+    });
+
+    if (socialSignInError) {
+      setError(socialSignInError.message || "Unable to sign in with Google");
+      setIsGooglePending(false);
+    }
   }
 
   async function handleGithubSignIn() {
@@ -526,19 +545,35 @@ export function SignIn({
       <div className="grid grid-cols-2 gap-2.5">
         <button
           type="button"
-          disabled
-          className="flex h-10 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-zinc-100/80 text-sm font-medium text-zinc-500"
+          onClick={handleGoogleSignIn}
+          disabled={!googleAuthEnabled || isActionPending}
+          className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100/80 disabled:text-zinc-500"
         >
-          <span className="text-sm">G</span>
-          Google
+          <Image
+            src="/icons/google.svg"
+            alt=""
+            aria-hidden
+            width={16}
+            height={16}
+            className="h-4 w-4"
+          />
+          {isGooglePending ? "Redirecting..." : "Google"}
         </button>
         <button
           type="button"
           onClick={handleGithubSignIn}
           disabled={!githubAuthEnabled || isActionPending}
-          className="flex h-10 items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100/80 disabled:text-zinc-500"
+          className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100/80 disabled:text-zinc-500"
         >
-          <span className="text-sm">GitHub</span>
+          <Image
+            src="/icons/github.svg"
+            alt=""
+            aria-hidden
+            width={20}
+            height={20}
+            className="h-5 w-5"
+          />
+          GitHub
         </button>
       </div>
 

@@ -4,7 +4,7 @@ import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { motion } from "motion/react";
 import Image from "next/image";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
@@ -48,6 +48,8 @@ function inferCompanyNameFromWebsite(value: string) {
 
 export function HeroCompanyCta({ className }: HeroCompanyCtaProps) {
   const router = useRouter();
+  const inputId = useId();
+  const errorId = useId();
   const [websiteValue, setWebsiteValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -87,7 +89,7 @@ export function HeroCompanyCta({ className }: HeroCompanyCtaProps) {
       onSubmit={handleSubmit}
       className={cn("mx-auto w-full max-w-[280px]", className)}
     >
-      <label htmlFor="hero-website" className="sr-only">
+      <label htmlFor={inputId} className="sr-only">
         Website or company name
       </label>
 
@@ -105,7 +107,7 @@ export function HeroCompanyCta({ className }: HeroCompanyCtaProps) {
         </div>
 
         <input
-          id="hero-website"
+          id={inputId}
           type="text"
           inputMode="url"
           autoComplete="url"
@@ -119,7 +121,7 @@ export function HeroCompanyCta({ className }: HeroCompanyCtaProps) {
           placeholder="website.com"
           className="h-full w-full bg-transparent px-3 text-[14px] font-medium tracking-[-0.01em] text-black outline-none placeholder:text-black/24"
           aria-invalid={Boolean(error)}
-          aria-describedby={error ? "hero-website-error" : undefined}
+          aria-describedby={error ? errorId : undefined}
           required
         />
       </div>
@@ -140,12 +142,12 @@ export function HeroCompanyCta({ className }: HeroCompanyCtaProps) {
       </motion.button>
 
       <p className="mt-2 text-center text-[12px] font-medium tracking-[-0.01em] text-black/58">
-        14-day free trial. No card required
+        30-day free trial. No card required
       </p>
 
       {error ? (
         <p
-          id="hero-website-error"
+          id={errorId}
           className="mt-2 text-center text-sm font-medium text-rose-600"
         >
           {error}
