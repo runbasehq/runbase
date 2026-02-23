@@ -99,6 +99,7 @@ export const workspace = pgTable(
     welcomeEmailStatus: text("welcome_email_status")
       .notNull()
       .default("pending"),
+    emailSenderFounder: text("email_sender_founder").notNull().default("fran"),
     welcomeEmailSentAt: timestamp("welcome_email_sent_at"),
     welcomeEmailMessageId: text("welcome_email_message_id"),
     createdByUserId: text("created_by_user_id")
@@ -122,6 +123,10 @@ export const workspace = pgTable(
     check(
       "workspace_welcome_email_status_check",
       sql`${table.welcomeEmailStatus} in ('pending', 'sending', 'sent')`,
+    ),
+    check(
+      "workspace_email_sender_founder_check",
+      sql`${table.emailSenderFounder} in ('fran', 'jere')`,
     ),
     index("workspace_created_by_user_id_idx").on(table.createdByUserId),
   ],

@@ -2,7 +2,10 @@ import { and, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { user, workspace, workspaceMember } from "@/lib/db/schema";
-import { sendWorkspaceWelcomeEmail } from "@/lib/email/send-workspace-welcome-email";
+import {
+  sendWorkspaceWelcomeEmail,
+  type WorkspaceEmailSenderFounder,
+} from "@/lib/email/send-workspace-welcome-email";
 import { extractSubdomainFromHeaders } from "@/lib/subdomains";
 import { protocol, rootDomain } from "@/lib/utils";
 import { validateCreateWorkspaceInput } from "~/workspace/schemas/create-workspace";
@@ -46,6 +49,16 @@ function isUniqueViolationError(error: unknown) {
   return false;
 }
 
+function pickWorkspaceEmailSenderFounder(): WorkspaceEmailSenderFounder {
+  return Math.random() < 0.5 ? "fran" : "jere";
+}
+
+function toWorkspaceEmailSenderFounder(
+  value: string,
+): WorkspaceEmailSenderFounder {
+  return value === "jere" ? "jere" : "fran";
+}
+
 async function sendWelcomeEmailIfNeeded({
   workspaceId,
   workspaceName,
@@ -71,6 +84,7 @@ async function sendWelcomeEmailIfNeeded({
     )
     .returning({
       id: workspace.id,
+      emailSenderFounder: workspace.emailSenderFounder,
     });
 
   if (!claimedWorkspace) {
@@ -100,6 +114,9 @@ async function sendWelcomeEmailIfNeeded({
   try {
     const workspaceUrl = `${protocol}://${workspaceSlug}.${rootDomain}/dashboard`;
     const messageId = await sendWorkspaceWelcomeEmail({
+      founder: toWorkspaceEmailSenderFounder(
+        claimedWorkspace.emailSenderFounder,
+      ),
       recipientEmail: recipient.email,
       recipientName: recipient.name,
       workspaceId,
@@ -170,6 +187,7 @@ export async function createWorkspaceForUser({
   }
 
   const workspaceId = crypto.randomUUID();
+  const emailSenderFounder = pickWorkspaceEmailSenderFounder();
 
   try {
     await db.insert(workspace).values({
@@ -179,6 +197,7 @@ export async function createWorkspaceForUser({
       feedbackAccess,
       primaryGoal,
       onboardingCompletedAt: new Date(),
+      emailSenderFounder,
       createdByUserId: userId,
     });
 
