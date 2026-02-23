@@ -15,7 +15,7 @@ import { PricingSection } from "~/marketing/components/pricing-section";
 import { SiteFooter } from "~/marketing/components/site-footer";
 import { ToolsCompatibilitySection } from "~/marketing/components/tools-compatibility-section";
 
-export const metadata: Metadata = createPageMetadata({
+const landingMetadata = createPageMetadata({
   title: "Product feedback platform",
   description:
     "Collect feedback, prioritize roadmap, and publish changelog updates in one focused workflow.",
@@ -33,6 +33,25 @@ export const metadata: Metadata = createPageMetadata({
     "runbase",
   ],
 });
+
+export const metadata: Metadata = {
+  ...landingMetadata,
+  openGraph: {
+    ...landingMetadata.openGraph,
+    images: [
+      {
+        url: "/og-landing.png",
+        width: 1200,
+        height: 630,
+        alt: "Runbase landing page hero",
+      },
+    ],
+  },
+  twitter: {
+    ...landingMetadata.twitter,
+    images: ["/og-landing.png"],
+  },
+};
 
 export default function Page() {
   return (
