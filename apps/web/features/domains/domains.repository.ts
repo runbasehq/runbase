@@ -45,6 +45,8 @@ export interface WorkspaceMembershipRecord {
 export interface ProjectDomainStatus {
   verified: boolean;
   verification: DomainVerificationRecord[];
+  providerStatusText: string | null;
+  providerReasons: string[];
 }
 
 interface VercelConfig {
@@ -110,6 +112,27 @@ function parseVerificationRecords(input: unknown): DomainVerificationRecord[] {
     .filter((item) => item.domain.length && item.value.length);
 }
 
+function readOptionalString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim();
+  return normalized.length ? normalized : null;
+}
+
+function dedupeStrings(values: Array<string | null | undefined>) {
+  const unique = new Set<string>();
+
+  values.forEach((value) => {
+    if (typeof value === "string" && value.trim().length) {
+      unique.add(value.trim());
+    }
+  });
+
+  return Array.from(unique);
+}
+
 function parseStoredVerificationRecords(value: string | null) {
   if (!value) {
     return [];
@@ -155,17 +178,36 @@ function parseProviderDomainStatus(payload: unknown): ProjectDomainStatus {
     return {
       verified: false,
       verification: [],
+      providerStatusText: null,
+      providerReasons: [],
     };
   }
 
   const data = payload as {
     verified?: unknown;
     verification?: unknown;
+    status?: unknown;
+    configStatus?: unknown;
+    message?: unknown;
+    misconfigured?: unknown;
   };
+
+  const verification = parseVerificationRecords(data.verification);
+  const providerReasons = dedupeStrings([
+    ...verification.map((record) => record.reason),
+    readOptionalString(data.message),
+  ]);
+
+  const providerStatusText =
+    readOptionalString(data.configStatus) ||
+    readOptionalString(data.status) ||
+    (data.misconfigured === true ? "Invalid Configuration" : null);
 
   return {
     verified: data.verified === true,
-    verification: parseVerificationRecords(data.verification),
+    verification,
+    providerStatusText,
+    providerReasons,
   };
 }
 
@@ -174,26 +216,50 @@ function parseProviderError(error: unknown) {
     return {
       message: "Failed to connect to Vercel API",
       status: 502,
+      providerStatusText: null,
+      providerReasons: [],
+      providerCode: null,
+      providerRequestId: null,
     };
   }
 
   const data = error as {
     error?: { message?: unknown };
     message?: unknown;
-    responseBody?: { error?: { message?: unknown }; message?: unknown };
+    code?: unknown;
+    headers?: Record<string, unknown>;
+    responseBody?: {
+      error?: { message?: unknown; code?: unknown };
+      message?: unknown;
+      code?: unknown;
+      status?: unknown;
+      errors?: Array<{ message?: unknown }>;
+      verification?: unknown;
+    };
     status?: unknown;
     statusCode?: unknown;
   };
 
+  const parsedVerificationRecords = parseVerificationRecords(
+    data.responseBody?.verification,
+  );
+  const verificationReasons = parsedVerificationRecords.map(
+    (record) => record.reason,
+  );
+  const firstProviderArrayMessage = Array.isArray(data.responseBody?.errors)
+    ? readOptionalString(
+        data.responseBody.errors.find((item) =>
+          readOptionalString(item?.message),
+        )?.message,
+      )
+    : null;
+
   const message =
-    (typeof data.responseBody?.error?.message === "string"
-      ? data.responseBody.error.message
-      : null) ||
-    (typeof data.responseBody?.message === "string"
-      ? data.responseBody.message
-      : null) ||
-    (typeof data.error?.message === "string" ? data.error.message : null) ||
-    (typeof data.message === "string" ? data.message : null) ||
+    readOptionalString(data.responseBody?.error?.message) ||
+    firstProviderArrayMessage ||
+    readOptionalString(data.responseBody?.message) ||
+    readOptionalString(data.error?.message) ||
+    readOptionalString(data.message) ||
     "Vercel API request failed";
 
   const status =
@@ -203,7 +269,33 @@ function parseProviderError(error: unknown) {
         ? data.statusCode
         : 502;
 
-  return { message, status };
+  const providerStatusText =
+    readOptionalString(data.responseBody?.status) ||
+    (status >= 400 ? "Invalid Configuration" : null);
+
+  const providerCode =
+    readOptionalString(data.responseBody?.error?.code) ||
+    readOptionalString(data.responseBody?.code) ||
+    readOptionalString(data.code);
+
+  const providerRequestId =
+    readOptionalString(data.headers?.["x-vercel-id"]) ||
+    readOptionalString(data.headers?.["x-request-id"]);
+
+  const providerReasons = dedupeStrings([
+    ...verificationReasons,
+    readOptionalString(data.responseBody?.message),
+    readOptionalString(data.responseBody?.error?.message),
+  ]);
+
+  return {
+    message,
+    status,
+    providerStatusText,
+    providerReasons,
+    providerCode,
+    providerRequestId,
+  };
 }
 
 const loadVercelConfig = () =>
@@ -500,6 +592,15 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
                   operation: "domains.getProjectDomainStatus",
                   message: parsedError.message,
                   status: parsedError.status,
+                  providerStatusText:
+                    parsedError.providerStatusText || undefined,
+                  providerReasons:
+                    parsedError.providerReasons.length > 0
+                      ? parsedError.providerReasons
+                      : undefined,
+                  providerCode: parsedError.providerCode || undefined,
+                  providerRequestId: parsedError.providerRequestId || undefined,
+                  domain: normalizeHostname(domain),
                 });
               },
             });
@@ -538,6 +639,15 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
                   operation: "domains.addDomainToProject",
                   message: parsedError.message,
                   status: parsedError.status,
+                  providerStatusText:
+                    parsedError.providerStatusText || undefined,
+                  providerReasons:
+                    parsedError.providerReasons.length > 0
+                      ? parsedError.providerReasons
+                      : undefined,
+                  providerCode: parsedError.providerCode || undefined,
+                  providerRequestId: parsedError.providerRequestId || undefined,
+                  domain: name,
                 });
               },
             });
@@ -573,6 +683,15 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
                   operation: "domains.verifyProjectDomain",
                   message: parsedError.message,
                   status: parsedError.status,
+                  providerStatusText:
+                    parsedError.providerStatusText || undefined,
+                  providerReasons:
+                    parsedError.providerReasons.length > 0
+                      ? parsedError.providerReasons
+                      : undefined,
+                  providerCode: parsedError.providerCode || undefined,
+                  providerRequestId: parsedError.providerRequestId || undefined,
+                  domain: normalizeHostname(domain),
                 });
               },
             });
@@ -608,6 +727,15 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
                   operation: "domains.removeDomainFromProject",
                   message: parsedError.message,
                   status: parsedError.status,
+                  providerStatusText:
+                    parsedError.providerStatusText || undefined,
+                  providerReasons:
+                    parsedError.providerReasons.length > 0
+                      ? parsedError.providerReasons
+                      : undefined,
+                  providerCode: parsedError.providerCode || undefined,
+                  providerRequestId: parsedError.providerRequestId || undefined,
+                  domain: normalizeHostname(domain),
                 });
               },
             });

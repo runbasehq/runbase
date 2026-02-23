@@ -3,6 +3,11 @@ import type { CustomDomain } from "./types";
 interface DomainApiError {
   error?: string;
   operation?: string;
+  providerStatusText?: string;
+  providerReasons?: string[];
+  providerCode?: string;
+  providerRequestId?: string;
+  domain?: string;
 }
 
 function toRequestUrl(input: RequestInfo) {
@@ -29,6 +34,11 @@ async function requestJson<T>(input: RequestInfo, init?: RequestInit) {
       status: response.status,
       error: payload.error,
       operation: payload.operation,
+      providerStatusText: payload.providerStatusText,
+      providerReasons: payload.providerReasons,
+      providerCode: payload.providerCode,
+      providerRequestId: payload.providerRequestId,
+      domain: payload.domain,
     });
     throw new Error(payload.error || "Request failed");
   }
