@@ -1,3 +1,5 @@
+import { Polar } from "@polar-sh/sdk";
+
 const defaultEvents = [
   "subscription.created",
   "subscription.updated",
@@ -12,70 +14,41 @@ const defaultEvents = [
 type WebhookEndpoint = {
   id: string;
   url: string;
-  enabled: boolean;
   secret?: string;
 };
 
-function getPolarBaseUrl() {
-  const explicit = process.env.POLAR_API_BASE_URL?.trim();
-
-  if (explicit) {
-    return explicit;
-  }
-
-  if (process.env.POLAR_ENVIRONMENT?.trim().toLowerCase() === "production") {
-    return "https://api.polar.sh";
-  }
-
-  return "https://sandbox-api.polar.sh";
-}
-
-function getAuthHeaders() {
+function getPolarClient() {
   const accessToken = process.env.POLAR_ACCESS_TOKEN?.trim();
 
   if (!accessToken) {
     throw new Error("Missing POLAR_ACCESS_TOKEN");
   }
 
-  return {
-    authorization: `Bearer ${accessToken}`,
-    "content-type": "application/json",
-  };
+  const explicitUrl = process.env.POLAR_API_BASE_URL?.trim();
+  const environment = process.env.POLAR_ENVIRONMENT?.trim().toLowerCase();
+
+  return new Polar({
+    accessToken,
+    server: environment === "production" ? "production" : "sandbox",
+    serverURL: explicitUrl || undefined,
+  });
 }
 
-async function polarRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${getPolarBaseUrl()}${path}`, {
-    ...init,
-    headers: {
-      ...getAuthHeaders(),
-      ...(init?.headers || {}),
-    },
+async function listWebhookEndpoints(): Promise<WebhookEndpoint[]> {
+  const polar = getPolarClient();
+  const organizationId = process.env.POLAR_ORGANIZATION_ID?.trim() || undefined;
+  const iterator = await polar.webhooks.listWebhookEndpoints({
+    organizationId,
+    limit: 100,
   });
 
-  if (!response.ok) {
-    throw new Error(
-      `Polar API ${response.status} ${response.statusText}: ${await response.text()}`,
-    );
+  const endpoints: WebhookEndpoint[] = [];
+
+  for await (const page of iterator) {
+    endpoints.push(...(page.result.items as WebhookEndpoint[]));
   }
 
-  return (await response.json()) as T;
-}
-
-function readEndpoints(payload: unknown): WebhookEndpoint[] {
-  if (Array.isArray(payload)) {
-    return payload as WebhookEndpoint[];
-  }
-
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "items" in payload &&
-    Array.isArray((payload as { items?: unknown }).items)
-  ) {
-    return (payload as { items: WebhookEndpoint[] }).items;
-  }
-
-  return [];
+  return endpoints;
 }
 
 async function main() {
@@ -85,12 +58,8 @@ async function main() {
     throw new Error("Missing POLAR_WEBHOOK_URL");
   }
 
-  const organizationId = process.env.POLAR_ORGANIZATION_ID?.trim() || null;
-
-  const existingList = await polarRequest<unknown>(
-    "/v1/webhooks/endpoints?limit=100",
-  );
-  const existing = readEndpoints(existingList).find(
+  const organizationId = process.env.POLAR_ORGANIZATION_ID?.trim() || undefined;
+  const existing = (await listWebhookEndpoints()).find(
     (endpoint) => endpoint.url === webhookUrl,
   );
 
@@ -99,23 +68,13 @@ async function main() {
     return;
   }
 
-  const body: Record<string, unknown> = {
+  const polar = getPolarClient();
+  const created = (await polar.webhooks.createWebhookEndpoint({
     url: webhookUrl,
     format: "raw",
     events: [...defaultEvents],
-  };
-
-  if (organizationId) {
-    body.organization_id = organizationId;
-  }
-
-  const created = await polarRequest<WebhookEndpoint>(
-    "/v1/webhooks/endpoints",
-    {
-      method: "POST",
-      body: JSON.stringify(body),
-    },
-  );
+    organizationId,
+  })) as WebhookEndpoint;
 
   process.stdout.write(`Webhook created: ${created.id}\n`);
 

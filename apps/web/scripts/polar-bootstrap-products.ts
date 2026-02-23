@@ -1,6 +1,7 @@
+import { Polar } from "@polar-sh/sdk";
+
 type PolarProduct = {
   id: string;
-  name: string;
   metadata?: Record<string, unknown> | null;
 };
 
@@ -48,101 +49,64 @@ const specs: ProductSpec[] = [
   },
 ];
 
-function getPolarBaseUrl() {
-  const explicit = process.env.POLAR_API_BASE_URL?.trim();
-
-  if (explicit) {
-    return explicit;
-  }
-
-  if (process.env.POLAR_ENVIRONMENT?.trim().toLowerCase() === "production") {
-    return "https://api.polar.sh";
-  }
-
-  return "https://sandbox-api.polar.sh";
-}
-
-function getAuthHeaders() {
+function getPolarClient() {
   const accessToken = process.env.POLAR_ACCESS_TOKEN?.trim();
 
   if (!accessToken) {
     throw new Error("Missing POLAR_ACCESS_TOKEN");
   }
 
-  return {
-    authorization: `Bearer ${accessToken}`,
-    "content-type": "application/json",
-  };
+  const explicitUrl = process.env.POLAR_API_BASE_URL?.trim();
+  const environment = process.env.POLAR_ENVIRONMENT?.trim().toLowerCase();
+
+  return new Polar({
+    accessToken,
+    server: environment === "production" ? "production" : "sandbox",
+    serverURL: explicitUrl || undefined,
+  });
 }
 
-async function polarRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${getPolarBaseUrl()}${path}`, {
-    ...init,
-    headers: {
-      ...getAuthHeaders(),
-      ...(init?.headers || {}),
-    },
+async function listProducts(): Promise<PolarProduct[]> {
+  const polar = getPolarClient();
+  const organizationId = process.env.POLAR_ORGANIZATION_ID?.trim() || undefined;
+  const iterator = await polar.products.list({
+    organizationId,
+    limit: 100,
   });
 
-  if (!response.ok) {
-    throw new Error(
-      `Polar API ${response.status} ${response.statusText}: ${await response.text()}`,
-    );
+  const products: PolarProduct[] = [];
+
+  for await (const page of iterator) {
+    products.push(...(page.result.items as PolarProduct[]));
   }
 
-  return (await response.json()) as T;
-}
-
-function readProducts(payload: unknown): PolarProduct[] {
-  if (Array.isArray(payload)) {
-    return payload as PolarProduct[];
-  }
-
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "items" in payload &&
-    Array.isArray((payload as { items?: unknown }).items)
-  ) {
-    return (payload as { items: PolarProduct[] }).items;
-  }
-
-  return [];
-}
-
-async function listProducts() {
-  const response = await polarRequest<unknown>("/v1/products/?limit=100");
-  return readProducts(response);
+  return products;
 }
 
 async function createProduct(spec: ProductSpec): Promise<PolarProduct> {
-  const organizationId = process.env.POLAR_ORGANIZATION_ID?.trim() || null;
-  const body: Record<string, unknown> = {
+  const polar = getPolarClient();
+  const organizationId = process.env.POLAR_ORGANIZATION_ID?.trim() || undefined;
+
+  const created = await polar.products.create({
     name: spec.name,
     description: spec.description,
-    recurring_interval: spec.recurringInterval,
-    recurring_interval_count: 1,
+    recurringInterval: spec.recurringInterval,
+    recurringIntervalCount: 1,
     prices: [
       {
-        amount_type: "fixed",
-        price_amount: spec.priceAmountCents,
-        price_currency: "usd",
+        amountType: "fixed",
+        priceAmount: spec.priceAmountCents,
+        priceCurrency: "usd",
       },
     ],
     metadata: {
       runbase_product_key: spec.key,
       managed_by: "runbase-script",
     },
-  };
-
-  if (organizationId) {
-    body.organization_id = organizationId;
-  }
-
-  return polarRequest<PolarProduct>("/v1/products/", {
-    method: "POST",
-    body: JSON.stringify(body),
+    organizationId,
   });
+
+  return created as PolarProduct;
 }
 
 async function main() {
