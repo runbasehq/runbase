@@ -1,15 +1,14 @@
 import { getRedis } from "@/lib/redis";
-import { extractSubdomainFromHeaders } from "@/lib/subdomains";
+import {
+  extractHostFromHeaders,
+  extractSubdomainFromHeaders,
+} from "@/lib/subdomains";
 import { rootDomain } from "@/lib/utils";
 
 import { getCustomDomainCacheKey, normalizeHostname } from "./domain-cache";
 
 function getHostFromHeaders(headers: Pick<Headers, "get">) {
-  const forwardedHost = headers.get("x-forwarded-host");
-  const hostHeader = forwardedHost || headers.get("host") || "";
-  const firstValue = hostHeader.split(",")[0]?.trim() ?? "";
-  const hostname = firstValue.split(":")[0] ?? "";
-  return normalizeHostname(hostname);
+  return normalizeHostname(extractHostFromHeaders(headers));
 }
 
 function isRootHost(hostname: string) {

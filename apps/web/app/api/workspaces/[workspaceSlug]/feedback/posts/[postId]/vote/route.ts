@@ -1,16 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
 import { Effect } from "effect";
+import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { appRuntime } from "@/lib/runtime";
-import { resolveWorkspaceFromHeaders } from "~/domains/lib/workspace-resolver";
+import { getWorkspaceBySlug } from "@/lib/workspaces";
 import { handleFeedbackError } from "~/feedback/feedback.errors";
-import { FeedbackService } from "~/feedback/feedback.service";
+import type { VoteIdentity } from "~/feedback/lib/types";
 import {
   getAnonVoteCookieConfig,
   getAnonVoteSession,
 } from "~/feedback/lib/vote-session";
-import type { VoteIdentity } from "~/feedback/lib/types";
+import { FeedbackService } from "~/feedback/feedback.service";
 
 function getClientIp(request: NextRequest) {
   if (process.env.TRUST_PROXY_HEADERS !== "true") {
@@ -41,10 +41,10 @@ function withAnonCookie(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ postId: string }> },
+  { params }: { params: Promise<{ workspaceSlug: string; postId: string }> },
 ) {
-  const { postId } = await params;
-  const workspace = await resolveWorkspaceFromHeaders(request.headers);
+  const { workspaceSlug, postId } = await params;
+  const workspace = await getWorkspaceBySlug(workspaceSlug);
 
   if (!workspace) {
     return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
@@ -87,10 +87,10 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ postId: string }> },
+  { params }: { params: Promise<{ workspaceSlug: string; postId: string }> },
 ) {
-  const { postId } = await params;
-  const workspace = await resolveWorkspaceFromHeaders(request.headers);
+  const { workspaceSlug, postId } = await params;
+  const workspace = await getWorkspaceBySlug(workspaceSlug);
 
   if (!workspace) {
     return NextResponse.json({ error: "Workspace not found" }, { status: 404 });

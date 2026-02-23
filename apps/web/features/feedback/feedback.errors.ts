@@ -6,42 +6,52 @@ export class FeedbackInvalidInput extends Data.TaggedError(
   "FeedbackInvalidInput",
 )<{
   message: string;
-}> { }
+}> {}
 
 export class FeedbackInvalidBoard extends Data.TaggedError(
   "FeedbackInvalidBoard",
 )<{
   boardId: string;
-}> { }
+}> {}
 
 export class FeedbackNoBoardConfigured extends Data.TaggedError(
   "FeedbackNoBoardConfigured",
-)<{}> { }
+)<Record<string, never>> {}
 
 export class FeedbackNoStatusConfigured extends Data.TaggedError(
   "FeedbackNoStatusConfigured",
-)<{}> { }
+)<Record<string, never>> {}
 
 export class FeedbackSlugGenerationFailed extends Data.TaggedError(
   "FeedbackSlugGenerationFailed",
-)<{}> { }
+)<Record<string, never>> {}
 
 export class FeedbackPostNotFound extends Data.TaggedError(
   "FeedbackPostNotFound",
 )<{
   postId: string;
-}> { }
+}> {}
 
-export class FeedbackRateLimited extends Data.TaggedError("FeedbackRateLimited")<{
+export class FeedbackRateLimited extends Data.TaggedError(
+  "FeedbackRateLimited",
+)<{
   workspaceRemaining: number | null;
   postRemaining: number | null;
-}> { }
+}> {}
+
+export class FeedbackWorkspaceNotFound extends Data.TaggedError(
+  "FeedbackWorkspaceNotFound",
+)<Record<string, never>> {}
+
+export class FeedbackForbidden extends Data.TaggedError("FeedbackForbidden")<{
+  message: string;
+}> {}
 
 export class FeedbackPersistenceError extends Data.TaggedError(
   "FeedbackPersistenceError",
 )<{
   operation: string;
-}> { }
+}> {}
 
 export type FeedbackRouteError =
   | ParseError
@@ -52,6 +62,8 @@ export type FeedbackRouteError =
   | FeedbackSlugGenerationFailed
   | FeedbackPostNotFound
   | FeedbackRateLimited
+  | FeedbackWorkspaceNotFound
+  | FeedbackForbidden
   | FeedbackPersistenceError;
 
 export function handleFeedbackError(error: FeedbackRouteError): NextResponse {
@@ -94,6 +106,13 @@ export function handleFeedbackError(error: FeedbackRouteError): NextResponse {
         },
         { status: 429 },
       );
+    case "FeedbackWorkspaceNotFound":
+      return NextResponse.json(
+        { error: "Workspace not found" },
+        { status: 404 },
+      );
+    case "FeedbackForbidden":
+      return NextResponse.json({ error: error.message }, { status: 403 });
     case "FeedbackPersistenceError":
       return NextResponse.json(
         { error: "Internal server error" },

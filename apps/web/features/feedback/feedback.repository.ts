@@ -9,6 +9,8 @@ import {
   feedbackPost,
   feedbackStatus,
   feedbackVote,
+  workspace,
+  workspaceMember,
 } from "@/lib/db/schema";
 import {
   enforceVotePerPostRateLimit as enforceVotePerPostRateLimitIo,
@@ -55,6 +57,16 @@ export interface FeedbackVoteRateLimitParams {
   workspaceId: string;
   postId: string;
   ip: string;
+}
+
+export interface FeedbackWorkspaceAccessRecord {
+  workspaceId: string;
+  feedbackAccess: "public" | "private";
+}
+
+export interface FeedbackWorkspaceMembershipRecord {
+  workspaceId: string;
+  role: string;
 }
 
 export interface FeedbackSeedDefaultsParams {
@@ -160,7 +172,7 @@ const resolveBoardId = (
     );
 
     if (!defaultBoard) {
-      return yield* new FeedbackNoBoardConfigured();
+      return yield* new FeedbackNoBoardConfigured({});
     }
 
     return defaultBoard.id;
@@ -188,7 +200,7 @@ const resolveStatusId = (
     );
 
     if (!defaultStatus) {
-      return yield* new FeedbackNoStatusConfigured();
+      return yield* new FeedbackNoStatusConfigured({});
     }
 
     return defaultStatus.id;
@@ -215,6 +227,72 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
   {
     accessors: true,
     effect: Effect.gen(function* () {
+      const getWorkspaceAccess = Effect.fn(
+        "FeedbackRepository.getWorkspaceAccess",
+      )(
+        ({
+          workspaceId,
+        }: {
+          workspaceId: string;
+        }): Effect.Effect<
+          FeedbackWorkspaceAccessRecord | null,
+          FeedbackPersistenceError
+        > =>
+          fromPersistencePromise("feedback.getWorkspaceAccess", async () => {
+            const [result] = await db
+              .select({
+                workspaceId: workspace.id,
+                feedbackAccess: workspace.feedbackAccess,
+              })
+              .from(workspace)
+              .where(eq(workspace.id, workspaceId))
+              .limit(1);
+
+            if (!result) {
+              return null;
+            }
+
+            return {
+              workspaceId: result.workspaceId,
+              feedbackAccess:
+                result.feedbackAccess === "public" ? "public" : "private",
+            };
+          }),
+      );
+      const getWorkspaceMembership = Effect.fn(
+        "FeedbackRepository.getWorkspaceMembership",
+      )(
+        ({
+          workspaceId,
+          userId,
+        }: {
+          workspaceId: string;
+          userId: string;
+        }): Effect.Effect<
+          FeedbackWorkspaceMembershipRecord | null,
+          FeedbackPersistenceError
+        > =>
+          fromPersistencePromise(
+            "feedback.getWorkspaceMembership",
+            async () => {
+              const [result] = await db
+                .select({
+                  workspaceId: workspaceMember.workspaceId,
+                  role: workspaceMember.role,
+                })
+                .from(workspaceMember)
+                .where(
+                  and(
+                    eq(workspaceMember.workspaceId, workspaceId),
+                    eq(workspaceMember.userId, userId),
+                  ),
+                )
+                .limit(1);
+
+              return result ?? null;
+            },
+          ),
+      );
       const getSnapshot = Effect.fn("FeedbackRepository.getSnapshot")(
         ({
           workspaceId,
@@ -396,7 +474,7 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
                   }
                 }
 
-                throw new FeedbackSlugGenerationFailed();
+                throw new FeedbackSlugGenerationFailed({});
               },
               catch: (cause) => {
                 if (hasTag(cause, "FeedbackSlugGenerationFailed")) {
@@ -748,6 +826,8 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
       );
 
       return {
+        getWorkspaceAccess,
+        getWorkspaceMembership,
         getSnapshot,
         createPost,
         enforceVoteRateLimit,
