@@ -12,6 +12,7 @@ Copy `apps/web/.env.example` and set:
 - `VERCEL_API_TOKEN` (required for custom domain add/verify/remove)
 - `VERCEL_PROJECT_ID` (required for custom domain add/verify/remove)
 - `VERCEL_TEAM_ID` (optional; required for team-scoped Vercel projects)
+- `TRUST_PROXY_HEADERS` (`true` only when deployed behind trusted proxy/edge that sanitizes `X-Forwarded-*` headers)
 
 ## Run locally
 
