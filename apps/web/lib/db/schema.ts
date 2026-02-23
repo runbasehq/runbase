@@ -96,6 +96,11 @@ export const workspace = pgTable(
       .notNull()
       .default("capture_manage_feedback"),
     onboardingCompletedAt: timestamp("onboarding_completed_at"),
+    welcomeEmailStatus: text("welcome_email_status")
+      .notNull()
+      .default("pending"),
+    welcomeEmailSentAt: timestamp("welcome_email_sent_at"),
+    welcomeEmailMessageId: text("welcome_email_message_id"),
     createdByUserId: text("created_by_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -113,6 +118,10 @@ export const workspace = pgTable(
     check(
       "workspace_primary_goal_check",
       sql`${table.primaryGoal} in ('capture_manage_feedback')`,
+    ),
+    check(
+      "workspace_welcome_email_status_check",
+      sql`${table.welcomeEmailStatus} in ('pending', 'sending', 'sent')`,
     ),
     index("workspace_created_by_user_id_idx").on(table.createdByUserId),
   ],

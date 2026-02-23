@@ -1,9 +1,10 @@
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { workspace, workspaceMember } from "@/lib/db/schema";
+import { user, workspace, workspaceMember } from "@/lib/db/schema";
+import { sendWorkspaceWelcomeEmail } from "@/lib/email/send-workspace-welcome-email";
 import { extractSubdomainFromHeaders } from "@/lib/subdomains";
-import { rootDomain } from "@/lib/utils";
+import { protocol, rootDomain } from "@/lib/utils";
 import { validateCreateWorkspaceInput } from "~/workspace/schemas/create-workspace";
 import {
   sanitizeWorkspaceSlug,
@@ -43,6 +44,93 @@ function isUniqueViolationError(error: unknown) {
   }
 
   return false;
+}
+
+async function sendWelcomeEmailIfNeeded({
+  workspaceId,
+  workspaceName,
+  workspaceSlug,
+  userId,
+}: {
+  workspaceId: string;
+  workspaceName: string;
+  workspaceSlug: string;
+  userId: string;
+}) {
+  const [claimedWorkspace] = await db
+    .update(workspace)
+    .set({
+      welcomeEmailStatus: "sending",
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(workspace.id, workspaceId),
+        eq(workspace.welcomeEmailStatus, "pending"),
+      ),
+    )
+    .returning({
+      id: workspace.id,
+    });
+
+  if (!claimedWorkspace) {
+    return;
+  }
+
+  const [recipient] = await db
+    .select({
+      email: user.email,
+      name: user.name,
+    })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+
+  if (!recipient?.email) {
+    await db
+      .update(workspace)
+      .set({
+        welcomeEmailStatus: "pending",
+        updatedAt: new Date(),
+      })
+      .where(eq(workspace.id, workspaceId));
+    return;
+  }
+
+  try {
+    const workspaceUrl = `${protocol}://${workspaceSlug}.${rootDomain}/dashboard`;
+    const messageId = await sendWorkspaceWelcomeEmail({
+      recipientEmail: recipient.email,
+      recipientName: recipient.name,
+      workspaceId,
+      workspaceName,
+      workspaceUrl,
+    });
+
+    await db
+      .update(workspace)
+      .set({
+        welcomeEmailStatus: "sent",
+        welcomeEmailSentAt: new Date(),
+        welcomeEmailMessageId: messageId,
+        updatedAt: new Date(),
+      })
+      .where(eq(workspace.id, workspaceId));
+  } catch (error) {
+    console.error("Failed to send workspace welcome email", {
+      workspaceId,
+      userId,
+      error,
+    });
+
+    await db
+      .update(workspace)
+      .set({
+        welcomeEmailStatus: "pending",
+        updatedAt: new Date(),
+      })
+      .where(eq(workspace.id, workspaceId));
+  }
 }
 
 export async function createWorkspaceForUser({
@@ -99,6 +187,13 @@ export async function createWorkspaceForUser({
       workspaceId,
       userId,
       role: "admin",
+    });
+
+    await sendWelcomeEmailIfNeeded({
+      workspaceId,
+      workspaceName: normalizedName,
+      workspaceSlug: slug,
+      userId,
     });
   } catch (error) {
     if (isUniqueViolationError(error)) {
