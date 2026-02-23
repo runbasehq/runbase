@@ -3,15 +3,19 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
+import { createPageMetadata } from "@/lib/seo";
 import { rootDomain } from "@/lib/utils";
 import { getAllSubdomains } from "@/lib/subdomains";
 
 import { AdminDashboard } from "./dashboard";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: `Admin Dashboard | ${rootDomain}`,
   description: `Manage subdomains for ${rootDomain}`,
-};
+  path: "/admin",
+  noIndex: true,
+  keywords: ["runbase admin", "tenant administration"],
+});
 
 export const dynamic = "force-dynamic";
 

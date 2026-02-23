@@ -1,14 +1,24 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { RunbaseLogo } from "@/components/logos/runbase-logo";
 import { auth } from "@/lib/auth";
+import { createPageMetadata } from "@/lib/seo";
 import { protocol, rootDomain } from "@/lib/utils";
 import { getFirstWorkspaceMembershipForUser } from "@/lib/workspaces";
 import { SignIn } from "~/auth/components/sign-in";
 import { normalizeCompanyName } from "~/workspace/schemas/create-workspace";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Sign In",
+  description: "Sign in to your Runbase workspace.",
+  path: "/sign-in",
+  noIndex: true,
+  keywords: ["runbase sign in", "runbase login", "workspace login"],
+});
 
 export const dynamic = "force-dynamic";
 

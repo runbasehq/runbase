@@ -1,9 +1,9 @@
-"use client";
-
 import Link from "next/link";
+import type { Metadata } from "next";
 
 import { RunbaseLogo } from "@/components/logos/runbase-logo";
-import { FancyButton } from "@/components/ui/fancy-button";
+import { createPageMetadata } from "@/lib/seo";
+import { FancyButtonRoot } from "@/components/ui/fancy-button";
 import { HeroCompanyCta } from "~/marketing/components/hero-company-cta";
 import { HeroMarquee } from "~/marketing/components/hero-marquee";
 import { HowItWorksSection } from "~/marketing/components/how-it-works-section";
@@ -12,6 +12,25 @@ import { FaqSection } from "~/marketing/components/faq-section";
 import { PricingSection } from "~/marketing/components/pricing-section";
 import { SiteFooter } from "~/marketing/components/site-footer";
 import { ToolsCompatibilitySection } from "~/marketing/components/tools-compatibility-section";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Product feedback platform",
+  description:
+    "Collect feedback, prioritize roadmap, and publish changelog updates in one focused workflow.",
+  path: "/",
+  keywords: [
+    "product feedback platform",
+    "featurebase alternative",
+    "open source feedback platform",
+    "feedback tool no per-seat pricing",
+    "feedback board",
+    "roadmap management",
+    "changelog software",
+    "feature request tool",
+    "customer feedback",
+    "runbase",
+  ],
+});
 
 export default function Page() {
   return (
@@ -88,9 +107,9 @@ export default function Page() {
                 >
                   Login
                 </Link>
-                <FancyButton.Root asChild variant="neutral" size="small">
+                <FancyButtonRoot asChild variant="neutral" size="small">
                   <Link href="/sign-up">Sign up</Link>
-                </FancyButton.Root>
+                </FancyButtonRoot>
               </div>
             </div>
           </header>
@@ -103,6 +122,15 @@ export default function Page() {
               Runbase gives your team one workflow for feedback collection,
               prioritization, and product updates, without absurd per-seat
               pricing.
+            </p>
+            <p className="mt-4 text-[14px] font-semibold leading-[1.45] tracking-[0.01em] text-black/62 md:text-[15px]">
+              Looking for a Featurebase alternative?{" "}
+              <Link
+                href="/featurebase-alternative"
+                className="text-black underline decoration-black/35 underline-offset-4 transition-colors hover:text-black/72"
+              >
+                Compare Runbase here.
+              </Link>
             </p>
             <HeroCompanyCta className="mt-10 md:mt-12" />
           </section>

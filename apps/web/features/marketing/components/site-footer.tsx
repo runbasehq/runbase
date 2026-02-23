@@ -16,6 +16,7 @@ type FooterLink = {
 
 const productLinks: readonly FooterLink[] = [
   { href: "/#features", label: "Features" },
+  { href: "/featurebase-alternative", label: "Featurebase alternative" },
   { href: "/#ideate", label: "Ideate" },
   { href: "/#prioritize", label: "Prioritize" },
   { href: "/#deliver", label: "Deliver" },
@@ -29,13 +30,12 @@ const companyLinks: readonly FooterLink[] = [
 ] as const;
 
 const socialLinks: readonly FooterLink[] = [
-  { href: "https://x.com", label: "X" },
-  { href: "https://linkedin.com", label: "LinkedIn" },
+  { href: "https://x.com/RunbaseHQ", label: "X" },
 ] as const;
 
 const legalLinks: readonly FooterLink[] = [
-  { href: "#", label: "Terms & Conditions" },
-  { href: "#", label: "Privacy Policy" },
+  { href: "/terms-and-conditions", label: "Terms & Conditions" },
+  { href: "/privacy-policy", label: "Privacy Policy" },
 ] as const;
 
 function FooterColumn({

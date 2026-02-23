@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { defaultKeywords } from "@/lib/seo";
 import { rootDomain } from "@/lib/utils";
 import { getWorkspaceBySlug } from "@/lib/workspaces";
 import { DashboardDomainManager } from "~/dashboard/components/dashboard-domain-manager";
@@ -19,9 +20,23 @@ export async function generateMetadata({
     return { title: rootDomain };
   }
 
+  const title = `${foundWorkspace.name} Dashboard`;
+  const description = `Private dashboard for ${foundWorkspace.slug}.${rootDomain}`;
+
   return {
-    title: `${foundWorkspace.name} Dashboard`,
-    description: `Private dashboard for ${foundWorkspace.slug}.${rootDomain}`,
+    title,
+    description,
+    keywords: [...defaultKeywords, `${foundWorkspace.name} dashboard`],
+    robots: {
+      index: false,
+      follow: false,
+      nocache: true,
+      googleBot: {
+        index: false,
+        follow: false,
+        noimageindex: true,
+      },
+    },
   };
 }
 

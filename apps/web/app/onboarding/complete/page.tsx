@@ -1,13 +1,24 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
+import { createPageMetadata } from "@/lib/seo";
 import { protocol, rootDomain } from "@/lib/utils";
 import {
   createWorkspaceForUser,
   getFirstWorkspaceMembershipForUser,
 } from "@/lib/workspaces";
 import { normalizeCompanyName } from "~/workspace/schemas/create-workspace";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Onboarding Complete",
+  description:
+    "Finalize your Runbase setup and launch your feedback workspace.",
+  path: "/onboarding/complete",
+  noIndex: true,
+  keywords: ["runbase onboarding complete", "workspace provisioning"],
+});
 
 export const dynamic = "force-dynamic";
 
