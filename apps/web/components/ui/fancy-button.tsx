@@ -54,15 +54,15 @@ export const fancyButtonVariants = tv({
     },
     size: {
       medium: {
-        root: "h-11 gap-2.5 rounded-[12px] px-5 text-[15px]",
+        root: "h-11 gap-2.5 rounded-[11px] px-5 text-[15px]",
         icon: "size-5 -mx-0.5",
       },
       small: {
-        root: "h-10 gap-2 rounded-[12px] px-4 text-[14px]",
+        root: "h-10 gap-2 rounded-[11px] px-4 text-[14px]",
         icon: "size-[18px] -mx-0.5",
       },
       xsmall: {
-        root: "h-9 gap-1.5 rounded-[11px] px-3 text-[13px]",
+        root: "h-9 gap-1.5 rounded-[10px] px-3 text-[13px]",
         icon: "size-4 -mx-0.5",
       },
     },

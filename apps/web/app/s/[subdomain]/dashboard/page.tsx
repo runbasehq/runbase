@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { rootDomain } from "@/lib/utils";
 import { getWorkspaceBySlug } from "@/lib/workspaces";
 import { DashboardDomainManager } from "~/dashboard/components/dashboard-domain-manager";
+import { loadDomainsForWorkspace } from "~/domains/lib/load-domains.server";
 import { FeedbackResetPlaceholder } from "~/feedback/components/feedback-reset-placeholder";
 
 export async function generateMetadata({
@@ -36,13 +37,15 @@ export default async function WorkspaceDashboardPage({
     notFound();
   }
 
+  const initialDomains = await loadDomainsForWorkspace(foundWorkspace.slug);
+
   return (
     <FeedbackResetPlaceholder
       mode="dashboard"
       workspaceName={foundWorkspace.name}
     >
       <div className="px-0 py-0">
-        <DashboardDomainManager />
+        <DashboardDomainManager initialDomains={initialDomains} />
       </div>
     </FeedbackResetPlaceholder>
   );

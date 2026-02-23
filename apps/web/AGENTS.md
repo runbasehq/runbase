@@ -54,6 +54,13 @@
 - Always prioritize Tailwind CSS utility directives/classes for styling.
 - Use `motion/react` for UI entrance/interaction animation.
 
+## Client Async Data Policy
+
+- Client-side async data fetching MUST use TanStack Query (`useQuery`, `useMutation`).
+- Client components MUST NOT fetch app data with ad-hoc `fetch` calls inside `useEffect`.
+- Prefer server-loaded initial data and pass it as `initialData` to TanStack Query hooks.
+- Mutations MUST invalidate/update related query keys.
+
 ## SVG Icon Rules (apps/web)
 
 - Place app icons in `components/icons`.

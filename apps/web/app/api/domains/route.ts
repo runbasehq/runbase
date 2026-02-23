@@ -4,22 +4,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { appRuntime } from "@/lib/runtime";
 import {
-  type DomainRouteError,
-  handleDomainError,
-} from "~/domains/domains.errors";
+  handleDomainRouteFailure,
+  readDomainBodyField,
+  readDomainContextValue,
+} from "~/domains/lib/domain-route-logging";
 import {
   decodeDomainListInput,
   decodeDomainManagementInput,
 } from "~/domains/domains.schema";
 import { DomainsService } from "~/domains/domains.service";
-
-function handleUnknownDomainError(error: unknown) {
-  if (error && typeof error === "object" && "_tag" in error) {
-    return handleDomainError(error as DomainRouteError);
-  }
-
-  return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-}
 
 export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -32,6 +25,8 @@ export async function GET(request: NextRequest) {
     workspaceSlug: request.nextUrl.searchParams.get("workspaceSlug") ?? "",
   };
 
+  const workspaceSlug = readDomainContextValue(rawQuery.workspaceSlug);
+
   const program = Effect.gen(function* () {
     const input = yield* decodeDomainListInput(rawQuery);
 
@@ -42,7 +37,13 @@ export async function GET(request: NextRequest) {
   }).pipe(
     Effect.match({
       onSuccess: (domains) => NextResponse.json({ domains }),
-      onFailure: handleUnknownDomainError,
+      onFailure: (error) =>
+        handleDomainRouteFailure(error, {
+          route: "/api/domains",
+          method: "GET",
+          userId: session.user.id,
+          workspaceSlug,
+        }),
     }),
   );
 
@@ -63,8 +64,14 @@ export async function POST(request: NextRequest) {
   try {
     rawBody = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request body" },
+      { status: 400 },
+    );
   }
+
+  const workspaceSlug = readDomainBodyField(rawBody, "workspaceSlug");
+  const domain = readDomainBodyField(rawBody, "domain");
 
   const program = Effect.gen(function* () {
     const input = yield* decodeDomainManagementInput(rawBody);
@@ -77,7 +84,14 @@ export async function POST(request: NextRequest) {
   }).pipe(
     Effect.match({
       onSuccess: (domain) => NextResponse.json({ domain }, { status: 201 }),
-      onFailure: handleUnknownDomainError,
+      onFailure: (error) =>
+        handleDomainRouteFailure(error, {
+          route: "/api/domains",
+          method: "POST",
+          userId: session.user.id,
+          workspaceSlug,
+          domain,
+        }),
     }),
   );
 
@@ -98,8 +112,14 @@ export async function DELETE(request: NextRequest) {
   try {
     rawBody = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request body" },
+      { status: 400 },
+    );
   }
+
+  const workspaceSlug = readDomainBodyField(rawBody, "workspaceSlug");
+  const domain = readDomainBodyField(rawBody, "domain");
 
   const program = Effect.gen(function* () {
     const input = yield* decodeDomainManagementInput(rawBody);
@@ -112,7 +132,14 @@ export async function DELETE(request: NextRequest) {
   }).pipe(
     Effect.match({
       onSuccess: ({ domain }) => NextResponse.json({ success: true, domain }),
-      onFailure: handleUnknownDomainError,
+      onFailure: (error) =>
+        handleDomainRouteFailure(error, {
+          route: "/api/domains",
+          method: "DELETE",
+          userId: session.user.id,
+          workspaceSlug,
+          domain,
+        }),
     }),
   );
 

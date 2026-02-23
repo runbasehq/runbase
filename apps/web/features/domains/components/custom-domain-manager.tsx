@@ -1,81 +1,40 @@
 "use client";
 
 import { motion } from "motion/react";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 
-interface DomainVerificationRecord {
-  type: string;
-  domain: string;
-  value: string;
-  reason: string | null;
-}
-
-interface CustomDomain {
-  domain: string;
-  verificationStatus: "pending" | "verified";
-  verificationRecords: DomainVerificationRecord[];
-  verifiedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface DomainApiError {
-  error?: string;
-}
-
-async function requestJson<T>(input: RequestInfo, init?: RequestInit) {
-  const response = await fetch(input, init);
-  const payload = (await response.json().catch(() => ({}))) as T & DomainApiError;
-
-  if (!response.ok) {
-    throw new Error(payload.error || "Request failed");
-  }
-
-  return payload as T;
-}
+import {
+  useAddDomainMutation,
+  useDomains,
+  useRemoveDomainMutation,
+  useVerifyDomainMutation,
+} from "~/domains/hooks/use-domains";
+import type { CustomDomain } from "~/domains/lib/types";
 
 export function CustomDomainManager({
   workspaceSlug,
   canManageDomains,
+  initialDomains,
 }: {
   workspaceSlug: string;
   canManageDomains: boolean;
+  initialDomains: CustomDomain[];
 }) {
-  const [domains, setDomains] = useState<CustomDomain[]>([]);
   const [domainInput, setDomainInput] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [activeDomainAction, setActiveDomainAction] = useState<string | null>(
-    null,
-  );
   const [error, setError] = useState<string | null>(null);
 
-  const loadDomains = useCallback(async () => {
-    setError(null);
+  const domainsQuery = useDomains({ workspaceSlug, initialDomains });
+  const addDomainMutation = useAddDomainMutation(workspaceSlug);
+  const verifyDomainMutation = useVerifyDomainMutation(workspaceSlug);
+  const removeDomainMutation = useRemoveDomainMutation(workspaceSlug);
 
-    try {
-      setIsLoading(true);
-      const response = await requestJson<{ domains: CustomDomain[] }>(
-        `/api/domains?workspaceSlug=${encodeURIComponent(workspaceSlug)}`,
-      );
-      setDomains(response.domains);
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Unable to load domains",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [workspaceSlug]);
-
-  useEffect(() => {
-    loadDomains();
-  }, [loadDomains]);
+  const domains = domainsQuery.data ?? [];
+  const isLoading = domainsQuery.isLoading;
 
   const pendingDomainCount = useMemo(
-    () => domains.filter((domain) => domain.verificationStatus === "pending").length,
+    () =>
+      domains.filter((domain) => domain.verificationStatus === "pending")
+        .length,
     [domains],
   );
 
@@ -87,30 +46,17 @@ export function CustomDomainManager({
     }
 
     setError(null);
-    setIsSaving(true);
 
     try {
-      await requestJson<{ domain: CustomDomain }>("/api/domains", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          workspaceSlug,
-          domain: domainInput,
-        }),
-      });
+      await addDomainMutation.mutateAsync(domainInput);
 
       setDomainInput("");
-      await loadDomains();
     } catch (requestError) {
       setError(
         requestError instanceof Error
           ? requestError.message
           : "Unable to add domain",
       );
-    } finally {
-      setIsSaving(false);
     }
   }
 
@@ -120,26 +66,15 @@ export function CustomDomainManager({
     }
 
     setError(null);
-    setActiveDomainAction(domain);
 
     try {
-      await requestJson<{ domain: CustomDomain }>("/api/domains/verify", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ workspaceSlug, domain }),
-      });
-
-      await loadDomains();
+      await verifyDomainMutation.mutateAsync(domain);
     } catch (requestError) {
       setError(
         requestError instanceof Error
           ? requestError.message
           : "Unable to verify domain",
       );
-    } finally {
-      setActiveDomainAction(null);
     }
   }
 
@@ -149,28 +84,26 @@ export function CustomDomainManager({
     }
 
     setError(null);
-    setActiveDomainAction(domain);
 
     try {
-      await requestJson<{ success: true; domain: string }>("/api/domains", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ workspaceSlug, domain }),
-      });
-
-      await loadDomains();
+      await removeDomainMutation.mutateAsync(domain);
     } catch (requestError) {
       setError(
         requestError instanceof Error
           ? requestError.message
           : "Unable to remove domain",
       );
-    } finally {
-      setActiveDomainAction(null);
     }
   }
+
+  const queryError =
+    domainsQuery.error instanceof Error
+      ? domainsQuery.error.message
+      : domainsQuery.error
+        ? "Unable to load domains"
+        : null;
+
+  const visibleError = error || queryError;
 
   return (
     <motion.section
@@ -194,7 +127,10 @@ export function CustomDomainManager({
       </div>
 
       {canManageDomains ? (
-        <form onSubmit={handleAddDomain} className="mt-5 flex flex-col gap-3 sm:flex-row">
+        <form
+          onSubmit={handleAddDomain}
+          className="mt-5 flex flex-col gap-3 sm:flex-row"
+        >
           <input
             value={domainInput}
             onChange={(event) => setDomainInput(event.target.value)}
@@ -203,10 +139,10 @@ export function CustomDomainManager({
           />
           <button
             type="submit"
-            disabled={isSaving || !domainInput.trim()}
+            disabled={addDomainMutation.isPending || !domainInput.trim()}
             className="h-11 rounded-(--r-sm) bg-(--brand) px-5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSaving ? "Adding..." : "Add domain"}
+            {addDomainMutation.isPending ? "Adding..." : "Add domain"}
           </button>
         </form>
       ) : (
@@ -215,7 +151,9 @@ export function CustomDomainManager({
         </p>
       )}
 
-      {error ? <p className="mt-4 text-sm text-rose-500">{error}</p> : null}
+      {visibleError ? (
+        <p className="mt-4 text-sm text-rose-500">{visibleError}</p>
+      ) : null}
 
       {isLoading ? (
         <p className="mt-4 text-sm text-(--muted)">Loading domains...</p>
@@ -226,7 +164,13 @@ export function CustomDomainManager({
       ) : (
         <div className="mt-6 space-y-4">
           {domains.map((domain) => {
-            const isActionBusy = activeDomainAction === domain.domain;
+            const isVerifyBusy =
+              verifyDomainMutation.isPending &&
+              verifyDomainMutation.variables === domain.domain;
+            const isRemoveBusy =
+              removeDomainMutation.isPending &&
+              removeDomainMutation.variables === domain.domain;
+            const isActionBusy = isVerifyBusy || isRemoveBusy;
             const isVerified = domain.verificationStatus === "verified";
 
             return (
@@ -236,7 +180,9 @@ export function CustomDomainManager({
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-(--text)">{domain.domain}</p>
+                    <p className="text-sm font-medium text-(--text)">
+                      {domain.domain}
+                    </p>
                     <p className="mt-1 text-xs text-(--muted)">
                       {isVerified
                         ? "Verified and routing"
@@ -264,7 +210,7 @@ export function CustomDomainManager({
                             disabled={isActionBusy}
                             className="h-8 rounded-(--r-sm) border border-(--border) px-3 text-xs text-(--text) transition-colors hover:border-(--brand) disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            {isActionBusy ? "Verifying..." : "Verify"}
+                            {isVerifyBusy ? "Verifying..." : "Verify"}
                           </button>
                         ) : null}
 
@@ -274,7 +220,7 @@ export function CustomDomainManager({
                           disabled={isActionBusy}
                           className="h-8 rounded-(--r-sm) border border-rose-300 px-3 text-xs text-rose-600 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {isActionBusy ? "Removing..." : "Remove"}
+                          {isRemoveBusy ? "Removing..." : "Remove"}
                         </button>
                       </>
                     ) : null}
@@ -283,8 +229,12 @@ export function CustomDomainManager({
 
                 {!isVerified && domain.verificationRecords.length > 0 ? (
                   <div className="mt-4 rounded-(--r-sm) border border-dashed border-(--border) p-3 text-xs text-(--muted)">
-                    <p className="font-medium text-(--text)">DNS record to configure</p>
-                    <p className="mt-2">Type: {domain.verificationRecords[0]?.type}</p>
+                    <p className="font-medium text-(--text)">
+                      DNS record to configure
+                    </p>
+                    <p className="mt-2">
+                      Type: {domain.verificationRecords[0]?.type}
+                    </p>
                     <p className="mt-1 break-all">
                       Name: {domain.verificationRecords[0]?.domain}
                     </p>

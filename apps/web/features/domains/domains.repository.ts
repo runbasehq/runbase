@@ -1,10 +1,6 @@
 import "server-only";
 
-import { VercelCore as Vercel } from "@vercel/sdk/core.js";
-import { projectsAddProjectDomain } from "@vercel/sdk/funcs/projectsAddProjectDomain.js";
-import { projectsGetProjectDomain } from "@vercel/sdk/funcs/projectsGetProjectDomain.js";
-import { projectsRemoveProjectDomain } from "@vercel/sdk/funcs/projectsRemoveProjectDomain.js";
-import { projectsVerifyProjectDomain } from "@vercel/sdk/funcs/projectsVerifyProjectDomain.js";
+import { Vercel } from "@vercel/sdk";
 import { and, eq } from "drizzle-orm";
 import { Effect } from "effect";
 
@@ -492,7 +488,7 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
 
             const response = yield* Effect.tryPromise({
               try: () =>
-                projectsGetProjectDomain(vercel, {
+                vercel.projects.getProjectDomain({
                   idOrName: config.projectId,
                   teamId: config.teamId || undefined,
                   domain: normalizeHostname(domain),
@@ -508,7 +504,7 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
               },
             });
 
-            return parseProviderDomainStatus(response.value);
+            return parseProviderDomainStatus(response);
           }),
       );
 
@@ -525,13 +521,12 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
         > =>
           Effect.gen(function* () {
             const config = yield* loadVercelConfig();
-
             const vercel = createVercelClient(config);
             const name = normalizeHostname(domain);
 
             yield* Effect.tryPromise({
               try: () =>
-                projectsAddProjectDomain(vercel, {
+                vercel.projects.addProjectDomain({
                   idOrName: config.projectId,
                   teamId: config.teamId || undefined,
                   requestBody: { name },
@@ -562,12 +557,11 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
         > =>
           Effect.gen(function* () {
             const config = yield* loadVercelConfig();
-
             const vercel = createVercelClient(config);
 
             yield* Effect.tryPromise({
               try: () =>
-                projectsVerifyProjectDomain(vercel, {
+                vercel.projects.verifyProjectDomain({
                   idOrName: config.projectId,
                   teamId: config.teamId || undefined,
                   domain: normalizeHostname(domain),
@@ -598,12 +592,11 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
         > =>
           Effect.gen(function* () {
             const config = yield* loadVercelConfig();
-
             const vercel = createVercelClient(config);
 
             const removeEffect = Effect.tryPromise({
               try: () =>
-                projectsRemoveProjectDomain(vercel, {
+                vercel.projects.removeProjectDomain({
                   idOrName: config.projectId,
                   teamId: config.teamId || undefined,
                   domain: normalizeHostname(domain),

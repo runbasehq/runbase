@@ -1,6 +1,14 @@
 import { DashboardDomainManager } from "~/dashboard/components/dashboard-domain-manager";
+import { loadDomainsForWorkspace } from "~/domains/lib/load-domains.server";
 
-export default function DashboardCustomDomainSettingsPage() {
+export default async function DashboardCustomDomainSettingsPage({
+  params,
+}: {
+  params: Promise<{ subdomain: string }>;
+}) {
+  const { subdomain } = await params;
+  const initialDomains = await loadDomainsForWorkspace(subdomain);
+
   return (
     <section className="p-6 md:p-10">
       <div className="mb-6 w-full max-w-2xl">
@@ -16,7 +24,7 @@ export default function DashboardCustomDomainSettingsPage() {
         </p>
       </div>
 
-      <DashboardDomainManager />
+      <DashboardDomainManager initialDomains={initialDomains} />
     </section>
   );
 }

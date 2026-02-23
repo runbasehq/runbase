@@ -6,10 +6,15 @@ import { usePathname } from "next/navigation";
 import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
+import { IconArrowUpDown } from "@/components/icons/icon-arrow-up-down";
+import { IconArrowUpRightSquare } from "@/components/icons/icon-arrow-up-right-square";
+import { IconGlobe } from "@/components/icons/icon-globe";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { FancyButton } from "@/components/ui/fancy-button";
 import { Kbd } from "@/components/ui/kbd";
 import { RunbaseMark } from "@/components/logos/runbase-mark";
-import { cn } from "@/lib/utils";
+import { cn, protocol, rootDomain } from "@/lib/utils";
+import { useDashboardRuntime } from "~/dashboard/components/dashboard-runtime-context";
 import {
   type DashboardNavItem,
   feedbackNavItems,
@@ -143,6 +148,8 @@ export function DashboardSidebar({
   user,
 }: DashboardSidebarProps) {
   const pathname = usePathname();
+  const { workspaceSlug } = useDashboardRuntime();
+  const publicUrl = `${protocol}://${workspaceSlug}.${rootDomain}`;
 
   return (
     <aside
@@ -160,11 +167,7 @@ export function DashboardSidebar({
             <p className="min-w-0 flex-1 truncate text-base font-medium tracking-[-0.01em] text-(--text)">
               {organizationName}
             </p>
-            <HugeiconsIcon
-              icon={ArrowDown01Icon}
-              strokeWidth={2.2}
-              className="size-[17px] text-(--muted-2)"
-            />
+            <IconArrowUpDown className="size-[17px] text-(--muted-2)" />
           </div>
         </div>
 
@@ -216,6 +219,24 @@ export function DashboardSidebar({
         </div>
 
         <div className="shrink-0 border-t border-(--sidebar-border) px-2 pb-4 pt-3">
+          <FancyButton.Root
+            asChild
+            size="xsmall"
+            variant="primary"
+            className="mb-2 w-full justify-start px-3"
+          >
+            <Link
+              href={publicUrl}
+              onClick={onNavigate}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <IconGlobe className="size-4" />
+              <span className="truncate">Public link</span>
+              <IconArrowUpRightSquare className="ml-auto size-4" />
+            </Link>
+          </FancyButton.Root>
+
           {footerNavItems.map((item) => {
             const active = isActive(pathname, item.href);
 

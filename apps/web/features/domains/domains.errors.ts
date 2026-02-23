@@ -30,7 +30,9 @@ export class DomainProviderNotConfigured extends Data.TaggedError(
   "DomainProviderNotConfigured",
 )<{}> {}
 
-export class DomainProviderError extends Data.TaggedError("DomainProviderError")<{
+export class DomainProviderError extends Data.TaggedError(
+  "DomainProviderError",
+)<{
   operation: string;
   message: string;
   status: number;
@@ -56,11 +58,17 @@ export type DomainRouteError =
 export function handleDomainError(error: DomainRouteError): NextResponse {
   switch (error._tag) {
     case "ParseError":
-      return NextResponse.json({ error: "Invalid request payload" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid request payload" },
+        { status: 400 },
+      );
     case "DomainInvalidInput":
       return NextResponse.json({ error: error.message }, { status: 400 });
     case "DomainWorkspaceNotFound":
-      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Workspace not found" },
+        { status: 404 },
+      );
     case "DomainForbidden":
       return NextResponse.json(
         { error: "Only workspace owners can manage custom domains" },
@@ -87,6 +95,12 @@ export function handleDomainError(error: DomainRouteError): NextResponse {
         { status: error.status },
       );
     case "DomainPersistenceError":
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+      return NextResponse.json(
+        {
+          error: "Internal server error",
+          operation: error.operation,
+        },
+        { status: 500 },
+      );
   }
 }

@@ -4,19 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { appRuntime } from "@/lib/runtime";
 import {
-  type DomainRouteError,
-  handleDomainError,
-} from "~/domains/domains.errors";
+  handleDomainRouteFailure,
+  readDomainBodyField,
+} from "~/domains/lib/domain-route-logging";
 import { decodeDomainManagementInput } from "~/domains/domains.schema";
 import { DomainsService } from "~/domains/domains.service";
-
-function handleUnknownDomainError(error: unknown) {
-  if (error && typeof error === "object" && "_tag" in error) {
-    return handleDomainError(error as DomainRouteError);
-  }
-
-  return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-}
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -29,8 +21,14 @@ export async function POST(request: NextRequest) {
   try {
     rawBody = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request body" },
+      { status: 400 },
+    );
   }
+
+  const workspaceSlug = readDomainBodyField(rawBody, "workspaceSlug");
+  const domain = readDomainBodyField(rawBody, "domain");
 
   const program = Effect.gen(function* () {
     const input = yield* decodeDomainManagementInput(rawBody);
@@ -43,7 +41,14 @@ export async function POST(request: NextRequest) {
   }).pipe(
     Effect.match({
       onSuccess: (domain) => NextResponse.json({ domain }),
-      onFailure: handleUnknownDomainError,
+      onFailure: (error) =>
+        handleDomainRouteFailure(error, {
+          route: "/api/domains/verify",
+          method: "POST",
+          userId: session.user.id,
+          workspaceSlug,
+          domain,
+        }),
     }),
   );
 
