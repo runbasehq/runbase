@@ -7,6 +7,7 @@ import {
   getUserWorkspaceMembershipBySlug,
   getWorkspaceBySlug,
 } from "@/lib/workspaces";
+import { DashboardRuntimeProvider } from "~/dashboard/components/dashboard-runtime-context";
 import { DashboardShell } from "~/dashboard/components/dashboard-shell";
 
 export default async function WorkspaceDashboardLayout({
@@ -44,15 +45,23 @@ export default async function WorkspaceDashboardLayout({
   }
 
   return (
-    <DashboardShell
-      organizationName={foundWorkspace.name}
-      user={{
-        email: session.user.email,
-        image: session.user.image,
-        name: session.user.name,
+    <DashboardRuntimeProvider
+      value={{
+        canManageDomains: membership.role === "owner",
+        workspaceName: foundWorkspace.name,
+        workspaceSlug: foundWorkspace.slug,
       }}
     >
-      {children}
-    </DashboardShell>
+      <DashboardShell
+        organizationName={foundWorkspace.name}
+        user={{
+          email: session.user.email,
+          image: session.user.image,
+          name: session.user.name,
+        }}
+      >
+        {children}
+      </DashboardShell>
+    </DashboardRuntimeProvider>
   );
 }

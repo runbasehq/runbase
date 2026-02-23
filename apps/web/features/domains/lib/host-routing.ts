@@ -51,6 +51,10 @@ export async function resolveWorkspaceSlugFromHeaders(
     return subdomain;
   }
 
+  if (process.env.NODE_ENV !== "production") {
+    return null;
+  }
+
   const hostname = getHostFromHeaders(headers);
 
   if (!hostname || isRootHost(hostname)) {

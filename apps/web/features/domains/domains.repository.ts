@@ -1,5 +1,10 @@
 import "server-only";
 
+import { VercelCore as Vercel } from "@vercel/sdk/core.js";
+import { projectsAddProjectDomain } from "@vercel/sdk/funcs/projectsAddProjectDomain.js";
+import { projectsGetProjectDomain } from "@vercel/sdk/funcs/projectsGetProjectDomain.js";
+import { projectsRemoveProjectDomain } from "@vercel/sdk/funcs/projectsRemoveProjectDomain.js";
+import { projectsVerifyProjectDomain } from "@vercel/sdk/funcs/projectsVerifyProjectDomain.js";
 import { and, eq } from "drizzle-orm";
 import { Effect } from "effect";
 
@@ -52,8 +57,6 @@ interface VercelConfig {
   teamId: string | null;
 }
 
-const VERCEL_API_BASE_URL = "https://api.vercel.com";
-
 const toPersistenceError = (operation: string) =>
   new DomainPersistenceError({ operation });
 
@@ -74,9 +77,7 @@ function isUniqueViolationError(error: unknown) {
   return "code" in error && error.code === "23505";
 }
 
-function parseVerificationRecords(
-  input: unknown,
-): DomainVerificationRecord[] {
+function parseVerificationRecords(input: unknown): DomainVerificationRecord[] {
   if (!Array.isArray(input)) {
     return [];
   }
@@ -144,32 +145,13 @@ function toWorkspaceDomainRecord(
     domain: row.domain,
     verificationStatus:
       row.verificationStatus === "verified" ? "verified" : "pending",
-    verificationRecords: parseStoredVerificationRecords(row.verificationDetails),
+    verificationRecords: parseStoredVerificationRecords(
+      row.verificationDetails,
+    ),
     verifiedAt: row.verifiedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
-}
-
-function parseProviderErrorMessage(payload: unknown) {
-  if (!payload || typeof payload !== "object") {
-    return null;
-  }
-
-  const data = payload as {
-    error?: { message?: unknown; code?: unknown };
-    message?: unknown;
-  };
-
-  if (typeof data.error?.message === "string") {
-    return data.error.message;
-  }
-
-  if (typeof data.message === "string") {
-    return data.message;
-  }
-
-  return null;
 }
 
 function parseProviderDomainStatus(payload: unknown): ProjectDomainStatus {
@@ -191,6 +173,43 @@ function parseProviderDomainStatus(payload: unknown): ProjectDomainStatus {
   };
 }
 
+function parseProviderError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return {
+      message: "Failed to connect to Vercel API",
+      status: 502,
+    };
+  }
+
+  const data = error as {
+    error?: { message?: unknown };
+    message?: unknown;
+    responseBody?: { error?: { message?: unknown }; message?: unknown };
+    status?: unknown;
+    statusCode?: unknown;
+  };
+
+  const message =
+    (typeof data.responseBody?.error?.message === "string"
+      ? data.responseBody.error.message
+      : null) ||
+    (typeof data.responseBody?.message === "string"
+      ? data.responseBody.message
+      : null) ||
+    (typeof data.error?.message === "string" ? data.error.message : null) ||
+    (typeof data.message === "string" ? data.message : null) ||
+    "Vercel API request failed";
+
+  const status =
+    typeof data.status === "number"
+      ? data.status
+      : typeof data.statusCode === "number"
+        ? data.statusCode
+        : 502;
+
+  return { message, status };
+}
+
 const loadVercelConfig = () =>
   Effect.gen(function* () {
     const apiToken = process.env.VERCEL_API_TOKEN;
@@ -208,80 +227,8 @@ const loadVercelConfig = () =>
     } satisfies VercelConfig;
   });
 
-const requestVercel = <A>({
-  config,
-  operation,
-  path,
-  method,
-  body,
-}: {
-  config: VercelConfig;
-  operation: string;
-  path: string;
-  method: "GET" | "POST" | "DELETE";
-  body?: unknown;
-}): Effect.Effect<A, DomainProviderError> =>
-  Effect.gen(function* () {
-    const url = new URL(`${VERCEL_API_BASE_URL}${path}`);
-
-    if (config.teamId) {
-      url.searchParams.set("teamId", config.teamId);
-    }
-
-    const response = yield* Effect.tryPromise({
-      try: () =>
-        fetch(url, {
-          method,
-          headers: {
-            Authorization: `Bearer ${config.apiToken}`,
-            "Content-Type": "application/json",
-          },
-          body: body ? JSON.stringify(body) : undefined,
-        }),
-      catch: () =>
-        new DomainProviderError({
-          operation,
-          message: "Failed to connect to Vercel API",
-          status: 502,
-        }),
-    });
-
-    const payload = yield* Effect.tryPromise({
-      try: async () => {
-        const text = await response.text();
-
-        if (!text) {
-          return null;
-        }
-
-        try {
-          return JSON.parse(text) as unknown;
-        } catch {
-          return null;
-        }
-      },
-      catch: () =>
-        new DomainProviderError({
-          operation,
-          message: "Failed to parse Vercel API response",
-          status: 502,
-        }),
-    });
-
-    if (!response.ok) {
-      const message =
-        parseProviderErrorMessage(payload) ||
-        `Vercel API request failed with status ${response.status}`;
-
-      return yield* new DomainProviderError({
-        operation,
-        message,
-        status: response.status,
-      });
-    }
-
-    return payload as A;
-  });
+const createVercelClient = (config: VercelConfig) =>
+  new Vercel({ bearerToken: config.apiToken });
 
 export class DomainsRepository extends Effect.Service<DomainsRepository>()(
   "DomainsRepository",
@@ -297,7 +244,10 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
         }: {
           workspaceSlug: string;
           userId: string;
-        }): Effect.Effect<WorkspaceMembershipRecord | null, DomainPersistenceError> =>
+        }): Effect.Effect<
+          WorkspaceMembershipRecord | null,
+          DomainPersistenceError
+        > =>
           fromPersistencePromise("domains.getWorkspaceMembership", async () => {
             const [membership] = await db
               .select({
@@ -306,7 +256,10 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
                 role: workspaceMember.role,
               })
               .from(workspaceMember)
-              .innerJoin(workspace, eq(workspaceMember.workspaceId, workspace.id))
+              .innerJoin(
+                workspace,
+                eq(workspaceMember.workspaceId, workspace.id),
+              )
               .where(
                 and(
                   eq(workspaceMember.userId, userId),
@@ -319,7 +272,9 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
           }),
       );
 
-      const listWorkspaceDomains = Effect.fn("DomainsRepository.listWorkspaceDomains")(
+      const listWorkspaceDomains = Effect.fn(
+        "DomainsRepository.listWorkspaceDomains",
+      )(
         ({
           workspaceId,
         }: {
@@ -342,16 +297,22 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
           domain,
         }: {
           domain: string;
-        }): Effect.Effect<WorkspaceDomainRecord | null, DomainPersistenceError> =>
-          fromPersistencePromise("domains.getWorkspaceDomainByName", async () => {
-            const [row] = await db
-              .select()
-              .from(workspaceDomain)
-              .where(eq(workspaceDomain.domain, normalizeHostname(domain)))
-              .limit(1);
+        }): Effect.Effect<
+          WorkspaceDomainRecord | null,
+          DomainPersistenceError
+        > =>
+          fromPersistencePromise(
+            "domains.getWorkspaceDomainByName",
+            async () => {
+              const [row] = await db
+                .select()
+                .from(workspaceDomain)
+                .where(eq(workspaceDomain.domain, normalizeHostname(domain)))
+                .limit(1);
 
-            return row ? toWorkspaceDomainRecord(row) : null;
-          }),
+              return row ? toWorkspaceDomainRecord(row) : null;
+            },
+          ),
       );
 
       const upsertWorkspaceDomain = Effect.fn(
@@ -367,7 +328,10 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
           domain: string;
           verificationStatus: WorkspaceDomainVerificationStatus;
           verificationRecords: DomainVerificationRecord[];
-        }): Effect.Effect<WorkspaceDomainRecord, DomainAlreadyAssigned | DomainPersistenceError> =>
+        }): Effect.Effect<
+          WorkspaceDomainRecord,
+          DomainAlreadyAssigned | DomainPersistenceError
+        > =>
           Effect.gen(function* () {
             const normalizedDomain = normalizeHostname(domain);
 
@@ -376,7 +340,9 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
             });
 
             if (existing && existing.workspaceId !== workspaceId) {
-              return yield* new DomainAlreadyAssigned({ domain: normalizedDomain });
+              return yield* new DomainAlreadyAssigned({
+                domain: normalizedDomain,
+              });
             }
 
             const storedVerificationRecords =
@@ -430,10 +396,14 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
               },
               catch: (error) => {
                 if (isUniqueViolationError(error)) {
-                  return new DomainAlreadyAssigned({ domain: normalizedDomain });
+                  return new DomainAlreadyAssigned({
+                    domain: normalizedDomain,
+                  });
                 }
 
-                return toPersistenceError("domains.upsertWorkspaceDomain.insert");
+                return toPersistenceError(
+                  "domains.upsertWorkspaceDomain.insert",
+                );
               },
             });
 
@@ -447,7 +417,9 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
           }),
       );
 
-      const deleteWorkspaceDomain = Effect.fn("DomainsRepository.deleteWorkspaceDomain")(
+      const deleteWorkspaceDomain = Effect.fn(
+        "DomainsRepository.deleteWorkspaceDomain",
+      )(
         ({
           workspaceId,
           domain,
@@ -495,9 +467,12 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
         }: {
           domain: string;
         }): Effect.Effect<void, DomainPersistenceError> =>
-          fromPersistencePromise("domains.removeCustomDomainRouting", async () => {
-            await getRedis().del(getCustomDomainCacheKey(domain));
-          }),
+          fromPersistencePromise(
+            "domains.removeCustomDomainRouting",
+            async () => {
+              await getRedis().del(getCustomDomainCacheKey(domain));
+            },
+          ),
       );
 
       const getProjectDomainStatus = Effect.fn(
@@ -513,56 +488,99 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
         > =>
           Effect.gen(function* () {
             const config = yield* loadVercelConfig();
-            const payload = yield* requestVercel<unknown>({
-              config,
-              operation: "domains.getProjectDomainStatus",
-              method: "GET",
-              path: `/v9/projects/${config.projectId}/domains/${encodeURIComponent(
-                normalizeHostname(domain),
-              )}`,
+            const vercel = createVercelClient(config);
+
+            const response = yield* Effect.tryPromise({
+              try: () =>
+                projectsGetProjectDomain(vercel, {
+                  idOrName: config.projectId,
+                  teamId: config.teamId || undefined,
+                  domain: normalizeHostname(domain),
+                }),
+              catch: (error) => {
+                const parsedError = parseProviderError(error);
+
+                return new DomainProviderError({
+                  operation: "domains.getProjectDomainStatus",
+                  message: parsedError.message,
+                  status: parsedError.status,
+                });
+              },
             });
 
-            return parseProviderDomainStatus(payload);
+            return parseProviderDomainStatus(response.value);
           }),
       );
 
-      const addDomainToProject = Effect.fn("DomainsRepository.addDomainToProject")(
+      const addDomainToProject = Effect.fn(
+        "DomainsRepository.addDomainToProject",
+      )(
         ({
           domain,
         }: {
           domain: string;
-        }): Effect.Effect<void, DomainProviderNotConfigured | DomainProviderError> =>
+        }): Effect.Effect<
+          void,
+          DomainProviderNotConfigured | DomainProviderError
+        > =>
           Effect.gen(function* () {
             const config = yield* loadVercelConfig();
 
-            yield* requestVercel<unknown>({
-              config,
-              operation: "domains.addDomainToProject",
-              method: "POST",
-              path: `/v10/projects/${config.projectId}/domains`,
-              body: {
-                name: normalizeHostname(domain),
+            const vercel = createVercelClient(config);
+            const name = normalizeHostname(domain);
+
+            yield* Effect.tryPromise({
+              try: () =>
+                projectsAddProjectDomain(vercel, {
+                  idOrName: config.projectId,
+                  teamId: config.teamId || undefined,
+                  requestBody: { name },
+                }),
+              catch: (error) => {
+                const parsedError = parseProviderError(error);
+
+                return new DomainProviderError({
+                  operation: "domains.addDomainToProject",
+                  message: parsedError.message,
+                  status: parsedError.status,
+                });
               },
             });
           }),
       );
 
-      const verifyProjectDomain = Effect.fn("DomainsRepository.verifyProjectDomain")(
+      const verifyProjectDomain = Effect.fn(
+        "DomainsRepository.verifyProjectDomain",
+      )(
         ({
           domain,
         }: {
           domain: string;
-        }): Effect.Effect<void, DomainProviderNotConfigured | DomainProviderError> =>
+        }): Effect.Effect<
+          void,
+          DomainProviderNotConfigured | DomainProviderError
+        > =>
           Effect.gen(function* () {
             const config = yield* loadVercelConfig();
 
-            yield* requestVercel<unknown>({
-              config,
-              operation: "domains.verifyProjectDomain",
-              method: "POST",
-              path: `/v9/projects/${config.projectId}/domains/${encodeURIComponent(
-                normalizeHostname(domain),
-              )}/verify`,
+            const vercel = createVercelClient(config);
+
+            yield* Effect.tryPromise({
+              try: () =>
+                projectsVerifyProjectDomain(vercel, {
+                  idOrName: config.projectId,
+                  teamId: config.teamId || undefined,
+                  domain: normalizeHostname(domain),
+                }),
+              catch: (error) => {
+                const parsedError = parseProviderError(error);
+
+                return new DomainProviderError({
+                  operation: "domains.verifyProjectDomain",
+                  message: parsedError.message,
+                  status: parsedError.status,
+                });
+              },
             });
           }),
       );
@@ -574,22 +592,39 @@ export class DomainsRepository extends Effect.Service<DomainsRepository>()(
           domain,
         }: {
           domain: string;
-        }): Effect.Effect<void, DomainProviderNotConfigured | DomainProviderError> =>
+        }): Effect.Effect<
+          void,
+          DomainProviderNotConfigured | DomainProviderError
+        > =>
           Effect.gen(function* () {
             const config = yield* loadVercelConfig();
 
-            const removeEffect = requestVercel<unknown>({
-              config,
-              operation: "domains.removeDomainFromProject",
-              method: "DELETE",
-              path: `/v9/projects/${config.projectId}/domains/${encodeURIComponent(
-                normalizeHostname(domain),
-              )}`,
+            const vercel = createVercelClient(config);
+
+            const removeEffect = Effect.tryPromise({
+              try: () =>
+                projectsRemoveProjectDomain(vercel, {
+                  idOrName: config.projectId,
+                  teamId: config.teamId || undefined,
+                  domain: normalizeHostname(domain),
+                }),
+              catch: (error) => {
+                const parsedError = parseProviderError(error);
+
+                return new DomainProviderError({
+                  operation: "domains.removeDomainFromProject",
+                  message: parsedError.message,
+                  status: parsedError.status,
+                });
+              },
             });
 
             yield* removeEffect.pipe(
               Effect.catchAll((error) => {
-                if (error._tag === "DomainProviderError" && error.status === 404) {
+                if (
+                  error._tag === "DomainProviderError" &&
+                  error.status === 404
+                ) {
                   return Effect.void;
                 }
 

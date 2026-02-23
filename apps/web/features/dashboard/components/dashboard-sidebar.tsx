@@ -57,7 +57,7 @@ function isActive(pathname: string, href: string) {
   }
 
   const normalizedPath = pathname.replace(/^\/s\/[^/]+/, "");
-  return normalizedPath === href;
+  return normalizedPath === href || normalizedPath.startsWith(`${href}/`);
 }
 
 function SidebarLink({
@@ -83,7 +83,7 @@ function SidebarLink({
           "hover:border-transparent hover:bg-black/7 hover:text-(--text)",
           "focus-visible:ring-2 focus-visible:ring-(--sidebar-ring) focus-visible:ring-offset-2 focus-visible:ring-offset-(--sidebar)",
           active &&
-          "border-(--border) bg-(--surface) text-(--text) shadow-[0_1px_0_rgba(17,18,20,0.05)] hover:border-(--border) hover:bg-black/6 hover:text-(--text)",
+            "border-(--border) bg-(--surface) text-(--text) shadow-[0_1px_0_rgba(17,18,20,0.05)] hover:border-(--border) hover:bg-black/6 hover:text-(--text)",
         )}
       >
         {active ? (
@@ -216,9 +216,18 @@ export function DashboardSidebar({
         </div>
 
         <div className="shrink-0 border-t border-(--sidebar-border) px-2 pb-4 pt-3">
-          {footerNavItems.map((item) => (
-            <SidebarLink key={item.id} item={item} onNavigate={onNavigate} />
-          ))}
+          {footerNavItems.map((item) => {
+            const active = isActive(pathname, item.href);
+
+            return (
+              <SidebarLink
+                key={item.id}
+                item={item}
+                active={active}
+                onNavigate={onNavigate}
+              />
+            );
+          })}
 
           <div className="mt-2 flex items-center gap-2 rounded-lg border border-(--sidebar-border) bg-(--surface) px-2.5 py-1.5">
             <Avatar size="sm">

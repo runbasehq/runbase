@@ -131,7 +131,7 @@ export const footerNavItems: DashboardNavItem[] = [
   },
   {
     id: "settings",
-    href: "#",
+    href: "/dashboard/settings/custom-domain",
     iconType: "svg",
     icon: IconSettings,
     label: "Settings",
