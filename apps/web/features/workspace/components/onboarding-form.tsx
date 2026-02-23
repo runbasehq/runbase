@@ -16,7 +16,9 @@ const initialState: CreateWorkspaceState = {};
 
 export function OnboardingForm({
   initialCompanyName = "",
+  allowExistingMembership = false,
 }: {
+  allowExistingMembership?: boolean;
   initialCompanyName?: string;
 }) {
   const [companyName, setCompanyName] = useState(() =>
@@ -57,6 +59,11 @@ export function OnboardingForm({
           </div>
 
           <form action={action} className="space-y-6">
+            <input
+              type="hidden"
+              name="allowExistingMembership"
+              value={allowExistingMembership ? "1" : "0"}
+            />
             <label className="block space-y-2">
               <span className="sr-only">Company name</span>
               <input

@@ -3,7 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 
 import { render } from "@react-email/render";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { Effect } from "effect";
 import { Resend } from "resend";
 
@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import {
   user,
   workspace,
+  workspaceDomain,
   workspaceInvitation,
   workspaceMember,
 } from "@/lib/db/schema";
@@ -30,6 +31,7 @@ export interface WorkspaceMembershipRecord {
   workspaceId: string;
   workspaceName: string;
   workspaceSlug: string;
+  connectedDomain: string | null;
   role: WorkspaceMemberRole;
 }
 
@@ -168,8 +170,83 @@ export class WorkspaceMembersRepository extends Effect.Service<WorkspaceMembersR
                 workspaceId: membership.workspaceId,
                 workspaceName: membership.workspaceName,
                 workspaceSlug: membership.workspaceSlug,
+                connectedDomain: null,
                 role: toMemberRole(membership.role),
               };
+            },
+          ),
+      );
+
+      const listWorkspaceMembershipsForUser = Effect.fn(
+        "WorkspaceMembersRepository.listWorkspaceMembershipsForUser",
+      )(
+        ({
+          userId,
+        }: {
+          userId: string;
+        }): Effect.Effect<
+          WorkspaceMembershipRecord[],
+          WorkspaceMembersPersistenceError
+        > =>
+          fromPersistencePromise(
+            "workspaceMembers.listWorkspaceMembershipsForUser",
+            async () => {
+              const rows = await db
+                .select({
+                  workspaceId: workspace.id,
+                  workspaceName: workspace.name,
+                  workspaceSlug: workspace.slug,
+                  role: workspaceMember.role,
+                })
+                .from(workspaceMember)
+                .innerJoin(
+                  workspace,
+                  eq(workspaceMember.workspaceId, workspace.id),
+                )
+                .where(eq(workspaceMember.userId, userId))
+                .orderBy(asc(workspaceMember.createdAt));
+
+              const workspaceIds = rows.map((row) => row.workspaceId);
+
+              if (workspaceIds.length === 0) {
+                return [];
+              }
+
+              const domainRows = await db
+                .select({
+                  workspaceId: workspaceDomain.workspaceId,
+                  domain: workspaceDomain.domain,
+                })
+                .from(workspaceDomain)
+                .where(
+                  and(
+                    inArray(workspaceDomain.workspaceId, workspaceIds),
+                    eq(workspaceDomain.verificationStatus, "verified"),
+                  ),
+                )
+                .orderBy(
+                  asc(workspaceDomain.workspaceId),
+                  asc(workspaceDomain.createdAt),
+                );
+
+              const domainByWorkspaceId = new Map<string, string>();
+              for (const domainRow of domainRows) {
+                if (!domainByWorkspaceId.has(domainRow.workspaceId)) {
+                  domainByWorkspaceId.set(
+                    domainRow.workspaceId,
+                    domainRow.domain,
+                  );
+                }
+              }
+
+              return rows.map((row) => ({
+                workspaceId: row.workspaceId,
+                workspaceName: row.workspaceName,
+                workspaceSlug: row.workspaceSlug,
+                connectedDomain:
+                  domainByWorkspaceId.get(row.workspaceId) || null,
+                role: toMemberRole(row.role),
+              }));
             },
           ),
       );
@@ -1116,6 +1193,7 @@ export class WorkspaceMembersRepository extends Effect.Service<WorkspaceMembersR
         getWorkspaceInvitationByTokenHash,
         getWorkspaceMemberById,
         getWorkspaceMembershipBySlug,
+        listWorkspaceMembershipsForUser,
         listWorkspaceInvitations,
         listWorkspaceMembers,
         markWorkspaceInvitationAccepted,

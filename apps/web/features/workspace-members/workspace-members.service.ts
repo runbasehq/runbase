@@ -139,6 +139,14 @@ export class WorkspaceMembersService extends Effect.Service<WorkspaceMembersServ
           }),
       );
 
+      const listWorkspaceMembershipsForUser = Effect.fn(
+        "WorkspaceMembersService.listWorkspaceMembershipsForUser",
+      )(({ userId }: { userId: string }) =>
+        repository.listWorkspaceMembershipsForUser({
+          userId,
+        }),
+      );
+
       const inviteMember = Effect.fn("WorkspaceMembersService.inviteMember")(
         ({
           workspaceSlug,
@@ -506,6 +514,7 @@ export class WorkspaceMembersService extends Effect.Service<WorkspaceMembersServ
         acceptInvitation,
         cancelInvitation,
         inviteMember,
+        listWorkspaceMembershipsForUser,
         listTeamSnapshot,
         removeMember,
         resendInvitation,

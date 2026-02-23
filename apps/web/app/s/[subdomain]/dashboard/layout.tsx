@@ -1,7 +1,9 @@
+import { Effect } from "effect";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
+import { appRuntime } from "@/lib/runtime";
 import { protocol, rootDomain } from "@/lib/utils";
 import {
   getUserWorkspaceMembershipBySlug,
@@ -9,6 +11,7 @@ import {
 } from "@/lib/workspaces";
 import { DashboardRuntimeProvider } from "~/dashboard/components/dashboard-runtime-context";
 import { DashboardShell } from "~/dashboard/components/dashboard-shell";
+import { WorkspaceMembersService } from "~/workspace-members/workspace-members.service";
 
 export default async function WorkspaceDashboardLayout({
   children,
@@ -44,6 +47,21 @@ export default async function WorkspaceDashboardLayout({
     notFound();
   }
 
+  const membershipsProgram =
+    WorkspaceMembersService.listWorkspaceMembershipsForUser({
+      userId: session.user.id,
+    }).pipe(
+      Effect.match({
+        onSuccess: (workspaceMemberships) => workspaceMemberships,
+        onFailure: (error) => {
+          console.error("Failed to list user workspace memberships", error);
+          return [];
+        },
+      }),
+    );
+
+  const memberships = await appRuntime.runPromise(membershipsProgram);
+
   return (
     <DashboardRuntimeProvider
       value={{
@@ -54,6 +72,12 @@ export default async function WorkspaceDashboardLayout({
     >
       <DashboardShell
         organizationName={foundWorkspace.name}
+        workspaces={memberships.map((currentMembership) => ({
+          connectedDomain: currentMembership.connectedDomain,
+          name: currentMembership.workspaceName,
+          role: currentMembership.role,
+          slug: currentMembership.workspaceSlug,
+        }))}
         user={{
           email: session.user.email,
           image: session.user.image,

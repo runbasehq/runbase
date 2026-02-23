@@ -20,6 +20,7 @@ export const metadata: Metadata = createPageMetadata({
 export const dynamic = "force-dynamic";
 
 type OnboardingSearchParams = {
+  allowExistingMembership?: string | string[];
   companyName?: string | string[];
 };
 
@@ -40,14 +41,30 @@ export default async function OnboardingPage({
   const companyName = normalizeCompanyName(
     readSingleParam(resolvedSearchParams.companyName),
   );
+  const allowExistingMembershipRaw = readSingleParam(
+    resolvedSearchParams.allowExistingMembership,
+  );
+  const allowExistingMembership =
+    allowExistingMembershipRaw === "1" ||
+    allowExistingMembershipRaw.toLowerCase() === "true";
 
   const session = await auth.api.getSession({
     headers: await headers(),
   });
 
   if (!session?.user) {
-    const nextPath = companyName
-      ? `/onboarding?companyName=${encodeURIComponent(companyName)}`
+    const nextParams = new URLSearchParams();
+
+    if (companyName) {
+      nextParams.set("companyName", companyName);
+    }
+
+    if (allowExistingMembership) {
+      nextParams.set("allowExistingMembership", "1");
+    }
+
+    const nextPath = nextParams.size
+      ? `/onboarding?${nextParams.toString()}`
       : "/onboarding";
 
     const signInSearchParams = new URLSearchParams({ next: nextPath });
@@ -62,11 +79,16 @@ export default async function OnboardingPage({
     session.user.id,
   );
 
-  if (existingMembership?.workspaceSlug) {
+  if (!allowExistingMembership && existingMembership?.workspaceSlug) {
     redirect(
       `${protocol}://${existingMembership.workspaceSlug}.${rootDomain}/dashboard`,
     );
   }
 
-  return <OnboardingForm initialCompanyName={companyName} />;
+  return (
+    <OnboardingForm
+      initialCompanyName={companyName}
+      allowExistingMembership={allowExistingMembership}
+    />
+  );
 }

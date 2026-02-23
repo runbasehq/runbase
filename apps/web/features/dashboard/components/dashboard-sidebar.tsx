@@ -6,15 +6,15 @@ import { usePathname } from "next/navigation";
 import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
-import { IconArrowUpDown } from "@/components/icons/icon-arrow-up-down";
 import { IconArrowUpRightSquare } from "@/components/icons/icon-arrow-up-right-square";
 import { IconGlobe } from "@/components/icons/icon-globe";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { Kbd } from "@/components/ui/kbd";
-import { RunbaseMark } from "@/components/logos/runbase-mark";
 import { cn, protocol, rootDomain } from "@/lib/utils";
 import { useDashboardRuntime } from "~/dashboard/components/dashboard-runtime-context";
+import { DashboardWorkspaceSwitcher } from "~/dashboard/components/dashboard-workspace-switcher";
+import type { DashboardWorkspaceOption } from "~/dashboard/components/dashboard-shell";
 import {
   type DashboardNavItem,
   feedbackNavItems,
@@ -26,6 +26,7 @@ import {
 interface DashboardSidebarProps {
   className?: string;
   organizationName: string;
+  workspaces: DashboardWorkspaceOption[];
   user: {
     email?: string | null;
     image?: string | null;
@@ -145,6 +146,7 @@ export function DashboardSidebar({
   className,
   onNavigate,
   organizationName,
+  workspaces,
   user,
 }: DashboardSidebarProps) {
   const pathname = usePathname();
@@ -160,15 +162,12 @@ export function DashboardSidebar({
     >
       <div className="flex h-full flex-col">
         <div className="border-b border-(--sidebar-border) px-2 py-3">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex size-7 items-center justify-center rounded-md border border-(--sidebar-border)">
-              <RunbaseMark className="size-[17px] text-(--text)" />
-            </span>
-            <p className="min-w-0 flex-1 truncate text-base font-medium tracking-[-0.01em] text-(--text)">
-              {organizationName}
-            </p>
-            <IconArrowUpDown className="size-[17px] text-(--muted-2)" />
-          </div>
+          <DashboardWorkspaceSwitcher
+            currentWorkspaceName={organizationName}
+            currentWorkspaceSlug={workspaceSlug}
+            onNavigate={onNavigate}
+            workspaces={workspaces}
+          />
         </div>
 
         <div className="flex-1 overflow-y-auto px-2 py-4">

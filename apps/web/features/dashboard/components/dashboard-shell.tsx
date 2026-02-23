@@ -8,9 +8,17 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DashboardSidebar } from "~/dashboard/components/dashboard-sidebar";
 
+export interface DashboardWorkspaceOption {
+  connectedDomain?: string | null;
+  name: string;
+  role: "admin" | "contributor";
+  slug: string;
+}
+
 interface DashboardShellProps {
   children: React.ReactNode;
   organizationName: string;
+  workspaces: DashboardWorkspaceOption[];
   user: {
     email?: string | null;
     image?: string | null;
@@ -29,6 +37,7 @@ function DashboardShellMain({ children }: { children: React.ReactNode }) {
 function DashboardShellRoot({
   children,
   organizationName,
+  workspaces,
   user,
 }: DashboardShellProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -42,6 +51,7 @@ function DashboardShellRoot({
         <DashboardSidebar
           className="hidden md:block"
           organizationName={organizationName}
+          workspaces={workspaces}
           user={user}
         />
 
@@ -89,6 +99,7 @@ function DashboardShellRoot({
                 className="h-full"
                 onNavigate={() => setMobileSidebarOpen(false)}
                 organizationName={organizationName}
+                workspaces={workspaces}
                 user={user}
               />
             </motion.div>

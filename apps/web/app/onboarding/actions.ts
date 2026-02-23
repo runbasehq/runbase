@@ -27,14 +27,26 @@ export async function createWorkspaceAction(
 ): Promise<CreateWorkspaceState> {
   const companyName = (formData.get("companyName") as string | null) ?? "";
   const normalizedCompanyName = normalizeCompanyName(companyName);
+  const allowExistingMembershipRaw =
+    (formData.get("allowExistingMembership") as string | null) ?? "0";
+  const allowExistingMembership =
+    allowExistingMembershipRaw === "1" ||
+    allowExistingMembershipRaw.toLowerCase() === "true";
 
   const session = await auth.api.getSession({
     headers: await headers(),
   });
 
   if (!session?.user) {
-    const nextPath = normalizedCompanyName
-      ? `/onboarding?companyName=${encodeURIComponent(normalizedCompanyName)}`
+    const nextParams = new URLSearchParams();
+    if (normalizedCompanyName) {
+      nextParams.set("companyName", normalizedCompanyName);
+    }
+    if (allowExistingMembership) {
+      nextParams.set("allowExistingMembership", "1");
+    }
+    const nextPath = nextParams.size
+      ? `/onboarding?${nextParams.toString()}`
       : "/onboarding";
     const signInSearchParams = new URLSearchParams({ next: nextPath });
 
@@ -59,7 +71,7 @@ export async function createWorkspaceAction(
     session.user.id,
   );
 
-  if (existingMembership?.workspaceSlug) {
+  if (!allowExistingMembership && existingMembership?.workspaceSlug) {
     redirect(
       `${protocol}://${existingMembership.workspaceSlug}.${rootDomain}/dashboard`,
     );
