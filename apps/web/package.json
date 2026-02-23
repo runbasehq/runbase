@@ -11,7 +11,9 @@
     "auth:generate": "better-auth generate --yes --config ./lib/auth.ts --output ./lib/db/schema.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "polar:bootstrap-products": "bun ./scripts/polar-bootstrap-products.ts",
+    "polar:setup-webhook": "bun ./scripts/polar-setup-webhook.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",

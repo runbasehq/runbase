@@ -38,6 +38,14 @@ export class WorkspaceMembersLastAdminViolation extends Data.TaggedError(
   "WorkspaceMembersLastAdminViolation",
 )<Record<string, never>> {}
 
+export class WorkspaceMembersSeatLimitExceeded extends Data.TaggedError(
+  "WorkspaceMembersSeatLimitExceeded",
+)<{
+  seatLimit: number;
+  seatsUsed: number;
+  seatsRequested: number;
+}> {}
+
 export class WorkspaceMembersEmailDeliveryFailed extends Data.TaggedError(
   "WorkspaceMembersEmailDeliveryFailed",
 )<{ message: string }> {}
@@ -57,6 +65,7 @@ export type WorkspaceMembersRouteError =
   | WorkspaceMembersInvitationInvalidToken
   | WorkspaceMembersInvitationExpired
   | WorkspaceMembersLastAdminViolation
+  | WorkspaceMembersSeatLimitExceeded
   | WorkspaceMembersEmailDeliveryFailed
   | WorkspaceMembersPersistenceError;
 
@@ -103,6 +112,13 @@ export function handleWorkspaceMembersError(
     case "WorkspaceMembersLastAdminViolation":
       return NextResponse.json(
         { error: "Workspace must have at least one admin" },
+        { status: 409 },
+      );
+    case "WorkspaceMembersSeatLimitExceeded":
+      return NextResponse.json(
+        {
+          error: `Seat limit reached (${error.seatsUsed}/${error.seatLimit})`,
+        },
         { status: 409 },
       );
     case "WorkspaceMembersEmailDeliveryFailed":

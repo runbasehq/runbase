@@ -5,6 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { motion } from "motion/react";
 
 import { cn } from "@/lib/utils";
+import { getPricingSummaryCopy } from "~/billing/billing-plans";
 
 type FaqSectionProps = {
   className?: string;
@@ -33,8 +34,7 @@ const faqItems: readonly FaqItem[] = [
   },
   {
     question: "How does seat pricing work?",
-    answer:
-      "Growth includes 2 seats and Professional includes 10 seats. After included seats, each additional seat is billed at $4 per seat per month.",
+    answer: getPricingSummaryCopy(),
   },
   {
     question: "Is there a free hosted plan?",

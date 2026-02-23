@@ -132,6 +132,120 @@ export const workspace = pgTable(
   ],
 );
 
+export const workspaceBillingCustomer = pgTable(
+  "workspace_billing_customer",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull().default("polar"),
+    providerCustomerId: text("provider_customer_id").notNull(),
+    email: text("email"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    unique("workspace_billing_customer_workspace_id_unique").on(
+      table.workspaceId,
+    ),
+    unique("workspace_billing_customer_provider_customer_id_unique").on(
+      table.providerCustomerId,
+    ),
+    index("workspace_billing_customer_provider_idx").on(table.provider),
+  ],
+);
+
+export const workspaceSubscription = pgTable(
+  "workspace_subscription",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    customerId: text("customer_id").references(
+      () => workspaceBillingCustomer.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    provider: text("provider").notNull().default("polar"),
+    providerSubscriptionId: text("provider_subscription_id").notNull(),
+    planKey: text("plan_key").notNull(),
+    status: text("status").notNull(),
+    billingInterval: text("billing_interval").notNull().default("monthly"),
+    seatLimit: integer("seat_limit"),
+    cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+    currentPeriodStart: timestamp("current_period_start"),
+    currentPeriodEnd: timestamp("current_period_end"),
+    canceledAt: timestamp("canceled_at"),
+    providerProductId: text("provider_product_id"),
+    providerPriceId: text("provider_price_id"),
+    rawPayload: text("raw_payload"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    unique("workspace_subscription_workspace_id_unique").on(table.workspaceId),
+    unique("workspace_subscription_provider_subscription_id_unique").on(
+      table.providerSubscriptionId,
+    ),
+    check(
+      "workspace_subscription_billing_interval_check",
+      sql`${table.billingInterval} in ('monthly', 'yearly')`,
+    ),
+    check(
+      "workspace_subscription_status_check",
+      sql`${table.status} in ('trialing', 'active', 'past_due', 'canceled', 'incomplete', 'incomplete_expired', 'paused', 'unpaid')`,
+    ),
+    check(
+      "workspace_subscription_plan_key_check",
+      sql`${table.planKey} in ('growth', 'professional', 'enterprise')`,
+    ),
+    index("workspace_subscription_status_idx").on(table.status),
+    index("workspace_subscription_provider_idx").on(table.provider),
+    index("workspace_subscription_period_end_idx").on(table.currentPeriodEnd),
+  ],
+);
+
+export const billingWebhookEvent = pgTable(
+  "billing_webhook_event",
+  {
+    id: text("id").primaryKey(),
+    provider: text("provider").notNull().default("polar"),
+    providerEventId: text("provider_event_id").notNull(),
+    eventType: text("event_type").notNull(),
+    status: text("status").notNull().default("received"),
+    payload: text("payload").notNull(),
+    lastError: text("last_error"),
+    receivedAt: timestamp("received_at").defaultNow().notNull(),
+    processedAt: timestamp("processed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    unique("billing_webhook_event_provider_event_unique").on(
+      table.provider,
+      table.providerEventId,
+    ),
+    check(
+      "billing_webhook_event_status_check",
+      sql`${table.status} in ('received', 'processed', 'failed', 'ignored')`,
+    ),
+    index("billing_webhook_event_status_idx").on(table.status),
+    index("billing_webhook_event_received_at_idx").on(table.receivedAt),
+  ],
+);
+
 export const workspaceMember = pgTable(
   "workspace_member",
   {
@@ -531,6 +645,8 @@ export const workspaceRelations = relations(workspace, ({ one, many }) => ({
     fields: [workspace.createdByUserId],
     references: [user.id],
   }),
+  billingCustomer: many(workspaceBillingCustomer),
+  subscriptions: many(workspaceSubscription),
   members: many(workspaceMember),
   domains: many(workspaceDomain),
   invitations: many(workspaceInvitation),
@@ -541,6 +657,31 @@ export const workspaceRelations = relations(workspace, ({ one, many }) => ({
   feedbackComments: many(feedbackComment),
   feedbackTags: many(feedbackTag),
 }));
+
+export const workspaceBillingCustomerRelations = relations(
+  workspaceBillingCustomer,
+  ({ one, many }) => ({
+    workspace: one(workspace, {
+      fields: [workspaceBillingCustomer.workspaceId],
+      references: [workspace.id],
+    }),
+    subscriptions: many(workspaceSubscription),
+  }),
+);
+
+export const workspaceSubscriptionRelations = relations(
+  workspaceSubscription,
+  ({ one }) => ({
+    workspace: one(workspace, {
+      fields: [workspaceSubscription.workspaceId],
+      references: [workspace.id],
+    }),
+    customer: one(workspaceBillingCustomer, {
+      fields: [workspaceSubscription.customerId],
+      references: [workspaceBillingCustomer.id],
+    }),
+  }),
+);
 
 export const workspaceMemberRelations = relations(
   workspaceMember,

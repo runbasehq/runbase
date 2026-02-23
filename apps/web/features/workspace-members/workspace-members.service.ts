@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 
 import { Effect } from "effect";
 
+import { BillingService } from "~/billing/billing.service";
 import type { WorkspaceMemberRole } from "~/workspace-members/lib/types";
 
 import {
@@ -15,6 +16,8 @@ import {
   WorkspaceMembersInvalidInput,
   WorkspaceMembersLastAdminViolation,
   WorkspaceMembersMemberNotFound,
+  WorkspaceMembersPersistenceError,
+  WorkspaceMembersSeatLimitExceeded,
   WorkspaceMembersWorkspaceNotFound,
 } from "./workspace-members.errors";
 import {
@@ -185,6 +188,31 @@ export class WorkspaceMembersService extends Effect.Service<WorkspaceMembersServ
                   email,
                 });
               }
+            }
+
+            const seatCapacity = yield* BillingService.assertSeatCapacity({
+              workspaceId: membership.workspaceId,
+              additionalSeats: 1,
+            }).pipe(
+              Effect.catchAll(() =>
+                Effect.fail(
+                  new WorkspaceMembersPersistenceError({
+                    operation: "workspaceMembers.assertSeatCapacity",
+                  }),
+                ),
+              ),
+            );
+
+            if (
+              !seatCapacity.allowed &&
+              typeof seatCapacity.seatLimit === "number" &&
+              typeof seatCapacity.seatsUsed === "number"
+            ) {
+              return yield* new WorkspaceMembersSeatLimitExceeded({
+                seatLimit: seatCapacity.seatLimit,
+                seatsUsed: seatCapacity.seatsUsed,
+                seatsRequested: seatCapacity.seatsRequested,
+              });
             }
 
             const rawToken = generateInvitationToken();
@@ -479,6 +507,31 @@ export class WorkspaceMembersService extends Effect.Service<WorkspaceMembersServ
                 invitationId: invitation.id,
               });
               return yield* new WorkspaceMembersInvitationExpired({});
+            }
+
+            const seatCapacity = yield* BillingService.assertSeatCapacity({
+              workspaceId: invitation.workspaceId,
+              additionalSeats: 0,
+            }).pipe(
+              Effect.catchAll(() =>
+                Effect.fail(
+                  new WorkspaceMembersPersistenceError({
+                    operation: "workspaceMembers.assertSeatCapacity",
+                  }),
+                ),
+              ),
+            );
+
+            if (
+              !seatCapacity.allowed &&
+              typeof seatCapacity.seatLimit === "number" &&
+              typeof seatCapacity.seatsUsed === "number"
+            ) {
+              return yield* new WorkspaceMembersSeatLimitExceeded({
+                seatLimit: seatCapacity.seatLimit,
+                seatsUsed: seatCapacity.seatsUsed,
+                seatsRequested: seatCapacity.seatsRequested,
+              });
             }
 
             const member = yield* repository.addWorkspaceMemberIfMissing({
