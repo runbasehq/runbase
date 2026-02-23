@@ -22,6 +22,8 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         fancy:
           "relative overflow-hidden border-transparent bg-(--text) text-white shadow-(--shadow-fancy-neutral) before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:bg-linear-to-b before:from-white/20 before:to-transparent before:p-px before:[mask-clip:content-box,border-box] before:[mask-composite:exclude] before:[mask-image:linear-gradient(#fff_0_0),linear-gradient(#fff_0_0)] after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:bg-linear-to-b after:from-white/80 after:to-transparent after:opacity-15 after:transition-opacity hover:after:opacity-25",
+        "fancy-raised":
+          "relative overflow-hidden border border-[#a7e865] bg-primary text-primary-foreground shadow-[0_2px_0_0_rgba(255,255,255,0.3)_inset,0_-2px_0_0_rgba(90,130,42,0.22)_inset,0_8px_16px_-14px_rgba(82,132,35,0.55)] hover:bg-primary/90 active:translate-y-px",
         "fancy-basic":
           "border-(--border) bg-(--surface) text-(--muted) shadow-(--shadow-fancy-stroke) hover:bg-(--surface-2) hover:text-(--text) hover:shadow-none",
       },
@@ -31,8 +33,8 @@ const buttonVariants = cva(
         xs: "h-5 gap-1 rounded-sm px-2 text-[0.625rem] has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-2.5",
         sm: "h-6 gap-1 px-2 text-xs/relaxed has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
         lg: "h-8 gap-1 px-2.5 text-xs/relaxed has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-4",
-        "fancy-sm": "h-9 rounded-lg px-3 text-sm",
-        "fancy-md": "h-10 rounded-[10px] px-3.5 text-sm",
+        "fancy-sm": "h-10 rounded-[12px] px-4 text-sm",
+        "fancy-md": "h-11 rounded-[12px] px-5 text-[15px]",
         icon: "size-7 [&_svg:not([class*='size-'])]:size-3.5",
         "icon-xs": "size-5 rounded-sm [&_svg:not([class*='size-'])]:size-2.5",
         "icon-sm": "size-6 [&_svg:not([class*='size-'])]:size-3",

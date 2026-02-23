@@ -129,7 +129,7 @@ export function HeroCompanyCta({ className }: HeroCompanyCtaProps) {
         whileHover={{ y: -1 }}
         type="submit"
         disabled={isSubmitting || !websiteValue.trim()}
-        className="mt-2 inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-[12px] border border-primary/85 bg-primary text-[16px] font-semibold tracking-[-0.01em] text-primary-foreground shadow-[0_2px_0_0_rgba(255,255,255,0.3)_inset,0_-2px_0_0_rgba(90,130,42,0.22)_inset,0_8px_16px_-14px_rgba(82,132,35,0.55)] transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-65"
+        className="mt-2 inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-[12px] border border-[#a7e865] bg-primary text-[15px] font-semibold tracking-[-0.01em] text-primary-foreground shadow-[0_2px_0_0_rgba(255,255,255,0.3)_inset,0_-2px_0_0_rgba(90,130,42,0.22)_inset,0_8px_16px_-14px_rgba(82,132,35,0.55)] transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-65"
       >
         <span>{isSubmitting ? "Opening..." : "Add my website"}</span>
         <HugeiconsIcon
