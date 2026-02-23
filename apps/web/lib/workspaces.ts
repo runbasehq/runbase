@@ -98,7 +98,7 @@ export async function createWorkspaceForUser({
       id: crypto.randomUUID(),
       workspaceId,
       userId,
-      role: "owner",
+      role: "admin",
     });
   } catch (error) {
     if (isUniqueViolationError(error)) {

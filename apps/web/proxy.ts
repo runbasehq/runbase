@@ -12,7 +12,12 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(`${protocol}://${rootDomain}`);
     }
 
-    if (pathname.startsWith("/sign-in") || pathname.startsWith("/onboarding")) {
+    if (
+      pathname.startsWith("/sign-in") ||
+      pathname.startsWith("/sign-up") ||
+      pathname.startsWith("/onboarding") ||
+      pathname.startsWith("/accept-invite")
+    ) {
       const redirectUrl = new URL(request.url);
       redirectUrl.hostname = rootDomain.split(":")[0] || redirectUrl.hostname;
 
@@ -31,7 +36,9 @@ export async function proxy(request: NextRequest) {
 
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname =
-      pathname === "/" ? `/s/${workspaceSlug}` : `/s/${workspaceSlug}${pathname}`;
+      pathname === "/"
+        ? `/s/${workspaceSlug}`
+        : `/s/${workspaceSlug}${pathname}`;
     return NextResponse.rewrite(rewriteUrl);
   }
 

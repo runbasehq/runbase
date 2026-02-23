@@ -357,8 +357,8 @@ export class DomainsService extends Effect.Service<DomainsService>()(
           }),
       );
 
-      const requireWorkspaceOwner = Effect.fn(
-        "DomainsService.requireWorkspaceOwner",
+      const requireWorkspaceAdmin = Effect.fn(
+        "DomainsService.requireWorkspaceAdmin",
       )(
         ({
           workspaceSlug,
@@ -373,7 +373,7 @@ export class DomainsService extends Effect.Service<DomainsService>()(
               userId,
             });
 
-            if (membership.role !== "owner") {
+            if (membership.role !== "admin") {
               return yield* new DomainForbidden({ workspaceSlug });
             }
 
@@ -416,7 +416,7 @@ export class DomainsService extends Effect.Service<DomainsService>()(
           domain: string;
         }) =>
           Effect.gen(function* () {
-            const membership = yield* requireWorkspaceOwner({
+            const membership = yield* requireWorkspaceAdmin({
               workspaceSlug,
               userId,
             });
@@ -508,7 +508,7 @@ export class DomainsService extends Effect.Service<DomainsService>()(
           domain: string;
         }) =>
           Effect.gen(function* () {
-            const membership = yield* requireWorkspaceOwner({
+            const membership = yield* requireWorkspaceAdmin({
               workspaceSlug,
               userId,
             });
@@ -578,7 +578,7 @@ export class DomainsService extends Effect.Service<DomainsService>()(
           domain: string;
         }) =>
           Effect.gen(function* () {
-            const membership = yield* requireWorkspaceOwner({
+            const membership = yield* requireWorkspaceAdmin({
               workspaceSlug,
               userId,
             });

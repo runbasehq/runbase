@@ -128,7 +128,7 @@ export const workspaceMember = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    role: text("role").notNull().default("member"),
+    role: text("role").notNull().default("contributor"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -136,12 +136,61 @@ export const workspaceMember = pgTable(
       .notNull(),
   },
   (table) => [
+    check(
+      "workspace_member_role_check",
+      sql`${table.role} in ('admin', 'contributor')`,
+    ),
     index("workspace_member_workspace_id_idx").on(table.workspaceId),
     index("workspace_member_user_id_idx").on(table.userId),
     unique("workspace_member_workspace_id_user_id_unique").on(
       table.workspaceId,
       table.userId,
     ),
+  ],
+);
+
+export const workspaceInvitation = pgTable(
+  "workspace_invitation",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    role: text("role").notNull().default("contributor"),
+    invitedByUserId: text("invited_by_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    status: text("status").notNull().default("pending"),
+    expiresAt: timestamp("expires_at").notNull(),
+    acceptedAt: timestamp("accepted_at"),
+    canceledAt: timestamp("canceled_at"),
+    lastSentAt: timestamp("last_sent_at"),
+    sendCount: integer("send_count").notNull().default(0),
+    emailMessageId: text("email_message_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    check(
+      "workspace_invitation_role_check",
+      sql`${table.role} in ('admin', 'contributor')`,
+    ),
+    check(
+      "workspace_invitation_status_check",
+      sql`${table.status} in ('pending', 'accepted', 'canceled', 'expired')`,
+    ),
+    unique("workspace_invitation_token_hash_unique").on(table.tokenHash),
+    uniqueIndex("workspace_invitation_workspace_email_pending_unique")
+      .on(table.workspaceId, table.email)
+      .where(sql`${table.status} = 'pending'`),
+    index("workspace_invitation_workspace_id_idx").on(table.workspaceId),
+    index("workspace_invitation_email_idx").on(table.email),
+    index("workspace_invitation_status_idx").on(table.status),
   ],
 );
 
@@ -446,6 +495,7 @@ export const userRelations = relations(user, ({ many }) => ({
   feedbackPosts: many(feedbackPost),
   feedbackVotes: many(feedbackVote),
   feedbackComments: many(feedbackComment),
+  workspaceInvitations: many(workspaceInvitation),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -469,6 +519,7 @@ export const workspaceRelations = relations(workspace, ({ one, many }) => ({
   }),
   members: many(workspaceMember),
   domains: many(workspaceDomain),
+  invitations: many(workspaceInvitation),
   feedbackBoards: many(feedbackBoard),
   feedbackStatuses: many(feedbackStatus),
   feedbackPosts: many(feedbackPost),
@@ -497,6 +548,20 @@ export const workspaceDomainRelations = relations(
     workspace: one(workspace, {
       fields: [workspaceDomain.workspaceId],
       references: [workspace.id],
+    }),
+  }),
+);
+
+export const workspaceInvitationRelations = relations(
+  workspaceInvitation,
+  ({ one }) => ({
+    workspace: one(workspace, {
+      fields: [workspaceInvitation.workspaceId],
+      references: [workspace.id],
+    }),
+    inviter: one(user, {
+      fields: [workspaceInvitation.invitedByUserId],
+      references: [user.id],
     }),
   }),
 );

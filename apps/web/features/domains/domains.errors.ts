@@ -76,7 +76,7 @@ export function handleDomainError(error: DomainRouteError): NextResponse {
       );
     case "DomainForbidden":
       return NextResponse.json(
-        { error: "Only workspace owners can manage custom domains" },
+        { error: "Only workspace admins can manage custom domains" },
         { status: 403 },
       );
     case "DomainNotFound":

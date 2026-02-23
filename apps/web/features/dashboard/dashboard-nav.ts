@@ -1,10 +1,13 @@
 import type { ComponentType, SVGProps } from "react";
 
 import { IconAssistant } from "@/components/icons/icon-assistant";
+import { IconGlobe } from "@/components/icons/icon-globe";
 import { IconHelp } from "@/components/icons/icon-help";
 import { IconInbox } from "@/components/icons/icon-inbox";
 import { IconMap } from "@/components/icons/icon-map";
 import { IconNew } from "@/components/icons/icon-new";
+import { IconPaintRoller } from "@/components/icons/icon-paint-roller";
+import { IconPeople } from "@/components/icons/icon-people";
 import { IconPost } from "@/components/icons/icon-post";
 import { IconRoadmap } from "@/components/icons/icon-roadmap";
 import { IconSearch } from "@/components/icons/icon-search";
@@ -131,9 +134,32 @@ export const footerNavItems: DashboardNavItem[] = [
   },
   {
     id: "settings",
-    href: "/dashboard/settings/custom-domain",
+    href: "/dashboard/settings/theme",
     iconType: "svg",
     icon: IconSettings,
     label: "Settings",
+    subItems: [
+      {
+        colorClassName: "text-fuchsia-600",
+        href: "/dashboard/settings/theme",
+        icon: IconPaintRoller,
+        id: "settings-theme",
+        label: "Theme",
+      },
+      {
+        colorClassName: "text-sky-600",
+        href: "/dashboard/settings/team",
+        icon: IconPeople,
+        id: "settings-team",
+        label: "Team",
+      },
+      {
+        colorClassName: "text-emerald-600",
+        href: "/dashboard/settings/custom-domain",
+        icon: IconGlobe,
+        id: "settings-custom-domain",
+        label: "Custom domain",
+      },
+    ],
   },
 ];

@@ -249,7 +249,7 @@ export function CustomDomainManager({
         </form>
       ) : (
         <p className="mt-5 text-sm text-(--muted)">
-          Only workspace owners can save, verify, or remove domains.
+          Only workspace admins can save, verify, or remove domains.
         </p>
       )}
 

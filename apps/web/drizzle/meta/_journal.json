@@ -36,6 +36,13 @@
       "when": 1771754400000,
       "tag": "0004_tasty_workspace_domain",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1771879000000,
+      "tag": "0005_fancy_workspace_members",
+      "breakpoints": true
     }
   ]
 }

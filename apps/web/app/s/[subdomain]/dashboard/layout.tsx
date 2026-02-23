@@ -47,7 +47,7 @@ export default async function WorkspaceDashboardLayout({
   return (
     <DashboardRuntimeProvider
       value={{
-        canManageDomains: membership.role === "owner",
+        canManageDomains: membership.role === "admin",
         workspaceName: foundWorkspace.name,
         workspaceSlug: foundWorkspace.slug,
       }}
