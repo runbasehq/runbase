@@ -11,7 +11,7 @@
     "./styles.css": "./dist/index.css",
     "./*": "./dist/*.js"
   },
-  "license": "MIT",
+  "license": "AGPL-3.0",
   "scripts": {
     "build:styles": "tailwindcss -i ./src/styles.css -o ./dist/index.css",
     "build:components": "tsc",

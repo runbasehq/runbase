@@ -1,6 +1,7 @@
 {
   "name": "with-tailwind",
   "private": true,
+  "license": "AGPL-3.0",
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
