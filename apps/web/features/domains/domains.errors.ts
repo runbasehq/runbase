@@ -36,6 +36,11 @@ export class DomainProviderError extends Data.TaggedError(
   operation: string;
   message: string;
   status: number;
+  providerStatusText?: string;
+  providerReasons?: string[];
+  providerCode?: string;
+  providerRequestId?: string;
+  domain?: string;
 }> {}
 
 export class DomainPersistenceError extends Data.TaggedError(
@@ -91,7 +96,15 @@ export function handleDomainError(error: DomainRouteError): NextResponse {
       );
     case "DomainProviderError":
       return NextResponse.json(
-        { error: error.message, operation: error.operation },
+        {
+          error: error.message,
+          operation: error.operation,
+          providerStatusText: error.providerStatusText,
+          providerReasons: error.providerReasons,
+          providerCode: error.providerCode,
+          providerRequestId: error.providerRequestId,
+          domain: error.domain,
+        },
         { status: error.status },
       );
     case "DomainPersistenceError":

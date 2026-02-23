@@ -15,16 +15,30 @@ import type {
 
 type DomainRecordTab = "CNAME" | "A";
 
-function StatusChip({ isVerified }: { isVerified: boolean }) {
+function StatusChip({
+  displayStatus,
+}: {
+  displayStatus: CustomDomain["statusDetail"]["displayStatus"];
+}) {
+  if (displayStatus === "verified") {
+    return (
+      <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700">
+        Verified
+      </span>
+    );
+  }
+
+  if (displayStatus === "invalid_configuration") {
+    return (
+      <span className="rounded-full bg-rose-500/15 px-3 py-1 text-xs font-semibold text-rose-700">
+        Invalid config
+      </span>
+    );
+  }
+
   return (
-    <span
-      className={`rounded-full px-3 py-1 text-xs font-semibold ${
-        isVerified
-          ? "bg-emerald-500/15 text-emerald-700"
-          : "bg-amber-500/15 text-amber-700"
-      }`}
-    >
-      {isVerified ? "Verified" : "Pending"}
+    <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-700">
+      Pending
     </span>
   );
 }
@@ -96,8 +110,9 @@ export function CustomDomainManager({
 
   const pendingDomainCount = useMemo(
     () =>
-      domains.filter((domain) => domain.verificationStatus === "pending")
-        .length,
+      domains.filter(
+        (domain) => domain.statusDetail.displayStatus !== "verified",
+      ).length,
     [domains],
   );
 
@@ -260,7 +275,10 @@ export function CustomDomainManager({
               removeDomainMutation.isPending &&
               removeDomainMutation.variables === domain.domain;
             const isActionBusy = isVerifyBusy || isRemoveBusy;
-            const isVerified = domain.verificationStatus === "verified";
+            const displayStatus = domain.statusDetail.displayStatus;
+            const isVerified = displayStatus === "verified";
+            const isInvalidConfiguration =
+              displayStatus === "invalid_configuration";
             const selectedTab =
               recordTabByDomain[domain.domain] ||
               domain.dnsConfig.recommendedType;
@@ -282,12 +300,14 @@ export function CustomDomainManager({
                     <p className="mt-1 text-xs text-(--muted)">
                       {isVerified
                         ? "Domain is active and routing."
-                        : "Pending DNS verification."}
+                        : isInvalidConfiguration
+                          ? "Domain is not correctly configured on DNS or SSL."
+                          : "Pending DNS verification."}
                     </p>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <StatusChip isVerified={isVerified} />
+                    <StatusChip displayStatus={displayStatus} />
 
                     {canManageDomains && !isVerified ? (
                       <button
@@ -315,13 +335,53 @@ export function CustomDomainManager({
 
                 {!isVerified ? (
                   <div className="mt-4 space-y-4">
-                    <div className="rounded-(--r-sm) border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                      <p className="font-semibold">DNS setup required</p>
+                    <div
+                      className={`rounded-(--r-sm) px-3 py-2 text-xs ${
+                        isInvalidConfiguration
+                          ? "border border-rose-200 bg-rose-50 text-rose-800"
+                          : "border border-amber-200 bg-amber-50 text-amber-800"
+                      }`}
+                    >
+                      <p className="font-semibold">
+                        {isInvalidConfiguration
+                          ? "Invalid configuration"
+                          : "DNS setup required"}
+                      </p>
+                      {isInvalidConfiguration ? (
+                        <p className="mt-1">
+                          Vercel cannot verify this domain yet. Fix DNS/SSL
+                          settings, then run Check status.
+                        </p>
+                      ) : null}
+
                       {domain.warnings.map((warning) => (
                         <p key={`${domain.domain}:${warning}`} className="mt-1">
                           {warning}
                         </p>
                       ))}
+
+                      {domain.statusDetail.providerStatusText ? (
+                        <p className="mt-2 rounded bg-black/5 px-2 py-1 text-[11px] font-medium text-(--text)">
+                          Vercel status:{" "}
+                          {domain.statusDetail.providerStatusText}
+                        </p>
+                      ) : null}
+
+                      {domain.statusDetail.providerReasons.length > 0 ? (
+                        <div className="mt-2 space-y-1">
+                          <p className="text-[11px] font-semibold text-(--text)">
+                            Provider details
+                          </p>
+                          {domain.statusDetail.providerReasons.map((reason) => (
+                            <p
+                              key={`${domain.domain}:provider-reason:${reason}`}
+                              className="text-[11px]"
+                            >
+                              - {reason}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
 
                     <div>
