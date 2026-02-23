@@ -29,6 +29,13 @@
       "when": 1771662000000,
       "tag": "0003_careful_onboarding_workspace",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1771754400000,
+      "tag": "0004_tasty_workspace_domain",
+      "breakpoints": true
     }
   ]
 }
