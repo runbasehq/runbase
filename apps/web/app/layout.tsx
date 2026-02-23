@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Inter } from "next/font/google";
+import { Faculty_Glyphic, Geist_Mono, Inter } from "next/font/google";
 import Script from "next/script";
 
 import {
@@ -19,6 +19,12 @@ const geistMono = Geist_Mono({
 
 const inter = Inter({
   variable: "--font-sans",
+  subsets: ["latin"],
+});
+
+const facultyGlyphic = Faculty_Glyphic({
+  variable: "--font-faculty-glyphic",
+  weight: "400",
   subsets: ["latin"],
 });
 
@@ -115,7 +121,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${geistMono.variable}`}>
+    <html
+      lang="en"
+      className={`${inter.variable} ${geistMono.variable} ${facultyGlyphic.variable}`}
+    >
       <head>
         <script
           type="application/ld+json"

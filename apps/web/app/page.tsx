@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 
 import { RunbaseLogo } from "@/components/logos/runbase-logo";
 import { createPageMetadata } from "@/lib/seo";
@@ -114,23 +116,32 @@ export default function Page() {
             </div>
           </header>
 
-          <section className="relative z-10 mx-auto flex w-full max-w-[1240px] flex-1 -translate-y-8 flex-col items-center justify-center px-6 pb-14 pt-10 text-center md:-translate-y-14 md:px-8 md:pb-16 md:pt-12">
-            <h1 className="max-w-[1140px] text-balance [font-family:var(--font-hero-title),var(--font-sans),sans-serif] text-[44px] font-normal leading-[108%] tracking-[-0.035em] md:text-[70px] md:font-medium">
+          <section className="relative z-10 mx-auto flex w-full max-w-[1240px] flex-1 -translate-y-8 flex-col items-center justify-center px-6 pb-14 pt-14 text-center md:-translate-y-14 md:px-8 md:pb-16 md:pt-16">
+            <Link
+              href="/featurebase-alternative"
+              className="group mb-5 inline-flex max-w-full items-center overflow-hidden rounded-full border border-black/14 bg-white/92 shadow-[0_1px_2px_rgba(0,0,0,0.06)] transition-colors hover:border-black/22"
+            >
+              <span className="inline-flex items-center whitespace-nowrap px-3.5 py-1.5 text-[0.75rem] font-normal leading-none tracking-[-0.01em] text-black/80">
+                Looking for a Featurebase alternative?
+              </span>
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap border-l border-black/14 px-3 py-1.5 text-[0.75rem] font-normal leading-none text-black/56 transition-colors group-hover:text-black/78">
+                Read
+                <span className="inline-flex size-4 items-center justify-center rounded-full bg-black/8 text-black/52 transition-colors group-hover:bg-black/12 group-hover:text-black/72">
+                  <HugeiconsIcon
+                    icon={ArrowRight01Icon}
+                    strokeWidth={2.4}
+                    className="size-[10px]"
+                  />
+                </span>
+              </span>
+            </Link>
+            <h1 className="max-w-[1140px] text-balance [font-family:var(--font-faculty-glyphic),var(--font-sans),serif] text-[34px] font-normal leading-[108%] tracking-[-0.03em] md:text-[52px]">
               Collect feedback, prioritize roadmap, and ship changelog updates
             </h1>
             <p className="mt-8 max-w-[860px] text-pretty text-[15px] font-medium leading-[150%] tracking-[-0.01em] text-black/72 md:text-[18px]">
               Runbase gives your team one workflow for feedback collection,
               prioritization, and product updates, without absurd per-seat
               pricing.
-            </p>
-            <p className="mt-4 text-[14px] font-semibold leading-[1.45] tracking-[0.01em] text-black/62 md:text-[15px]">
-              Looking for a Featurebase alternative?{" "}
-              <Link
-                href="/featurebase-alternative"
-                className="text-black underline decoration-black/35 underline-offset-4 transition-colors hover:text-black/72"
-              >
-                Compare Runbase here.
-              </Link>
             </p>
             <HeroCompanyCta className="mt-10 md:mt-12" />
           </section>
