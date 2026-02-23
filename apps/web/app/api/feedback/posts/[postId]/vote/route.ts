@@ -3,7 +3,7 @@ import { Effect } from "effect";
 
 import { auth } from "@/lib/auth";
 import { appRuntime } from "@/lib/runtime";
-import { getWorkspaceFromHeaders } from "@/lib/workspaces";
+import { resolveWorkspaceFromHeaders } from "~/domains/lib/workspace-resolver";
 import { handleFeedbackError } from "~/feedback/feedback.errors";
 import { FeedbackService } from "~/feedback/feedback.service";
 import {
@@ -40,7 +40,7 @@ export async function POST(
   { params }: { params: Promise<{ postId: string }> },
 ) {
   const { postId } = await params;
-  const workspace = await getWorkspaceFromHeaders(request.headers);
+  const workspace = await resolveWorkspaceFromHeaders(request.headers);
 
   if (!workspace) {
     return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
@@ -86,7 +86,7 @@ export async function DELETE(
   { params }: { params: Promise<{ postId: string }> },
 ) {
   const { postId } = await params;
-  const workspace = await getWorkspaceFromHeaders(request.headers);
+  const workspace = await resolveWorkspaceFromHeaders(request.headers);
 
   if (!workspace) {
     return NextResponse.json({ error: "Workspace not found" }, { status: 404 });

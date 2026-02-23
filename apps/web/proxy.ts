@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { extractSubdomainFromHeaders } from "@/lib/subdomains";
 import { protocol, rootDomain } from "@/lib/utils";
+import { resolveWorkspaceSlugFromHeaders } from "~/domains/lib/host-routing";
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const subdomain = extractSubdomainFromHeaders(request.headers);
+  const workspaceSlug = await resolveWorkspaceSlugFromHeaders(request.headers);
 
-  if (subdomain) {
+  if (workspaceSlug) {
     if (pathname.startsWith("/admin")) {
       return NextResponse.redirect(`${protocol}://${rootDomain}`);
     }
@@ -31,7 +31,7 @@ export function proxy(request: NextRequest) {
 
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname =
-      pathname === "/" ? `/s/${subdomain}` : `/s/${subdomain}${pathname}`;
+      pathname === "/" ? `/s/${workspaceSlug}` : `/s/${workspaceSlug}${pathname}`;
     return NextResponse.rewrite(rewriteUrl);
   }
 

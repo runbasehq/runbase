@@ -1,18 +1,26 @@
+import type { ReactNode } from "react";
+
 interface FeedbackResetPlaceholderProps {
   workspaceName: string;
   mode: "public" | "dashboard";
+  children?: ReactNode;
 }
 
 export function FeedbackResetPlaceholder({
   workspaceName,
   mode,
+  children,
 }: FeedbackResetPlaceholderProps) {
   return (
     <main
       className="min-h-screen bg-(--bg) px-6 py-16"
       data-ui-theme="agency-dashboard"
     >
-      <div className="mx-auto w-full max-w-2xl rounded-(--r-md) border border-(--border) bg-(--surface) p-8 shadow-(--shadow-sm)">
+      <div className="mx-auto w-full max-w-2xl">
+        {children}
+      </div>
+
+      <div className="mx-auto mt-8 w-full max-w-2xl rounded-(--r-md) border border-(--border) bg-(--surface) p-8 shadow-(--shadow-sm)">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--muted-2)">
           {mode === "dashboard" ? "Dashboard" : "Public feedback"}
         </p>

@@ -8,6 +8,7 @@ import {
   getUserWorkspaceMembershipBySlug,
   getWorkspaceBySlug,
 } from "@/lib/workspaces";
+import { CustomDomainManager } from "~/domains/components/custom-domain-manager";
 import { FeedbackResetPlaceholder } from "~/feedback/components/feedback-reset-placeholder";
 
 export async function generateMetadata({
@@ -61,9 +62,13 @@ export default async function WorkspaceDashboardPage({
   }
 
   return (
-    <FeedbackResetPlaceholder
-      mode="dashboard"
-      workspaceName={foundWorkspace.name}
-    />
+    <FeedbackResetPlaceholder mode="dashboard" workspaceName={foundWorkspace.name}>
+      <div className="px-0 py-0">
+        <CustomDomainManager
+          workspaceSlug={foundWorkspace.slug}
+          canManageDomains={membership.role === "owner"}
+        />
+      </div>
+    </FeedbackResetPlaceholder>
   );
 }
