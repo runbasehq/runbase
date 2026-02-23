@@ -1,66 +1,8 @@
 import type { Metadata } from "next";
-import { Faculty_Glyphic, Geist_Mono, Inter } from "next/font/google";
-import localFont from "next/font/local";
+import { Geist_Mono, Inter } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { QueryProvider } from "./providers/query-provider";
-
-const satoshi = localFont({
-  src: [
-    {
-      path: "./fonts/Satoshi-Light.otf",
-      weight: "300",
-      style: "normal",
-    },
-    {
-      path: "./fonts/Satoshi-LightItalic.otf",
-      weight: "300",
-      style: "italic",
-    },
-    {
-      path: "./fonts/Satoshi-Regular.otf",
-      weight: "400",
-      style: "normal",
-    },
-    {
-      path: "./fonts/Satoshi-Italic.otf",
-      weight: "400",
-      style: "italic",
-    },
-    {
-      path: "./fonts/Satoshi-Medium.otf",
-      weight: "500",
-      style: "normal",
-    },
-    {
-      path: "./fonts/Satoshi-MediumItalic.otf",
-      weight: "500",
-      style: "italic",
-    },
-    {
-      path: "./fonts/Satoshi-Bold.otf",
-      weight: "700",
-      style: "normal",
-    },
-    {
-      path: "./fonts/Satoshi-BoldItalic.otf",
-      weight: "700",
-      style: "italic",
-    },
-    {
-      path: "./fonts/Satoshi-Black.otf",
-      weight: "900",
-      style: "normal",
-    },
-    {
-      path: "./fonts/Satoshi-BlackItalic.otf",
-      weight: "900",
-      style: "italic",
-    },
-  ],
-  variable: "--font-sans",
-  display: "swap",
-});
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -68,14 +10,8 @@ const geistMono = Geist_Mono({
 });
 
 const inter = Inter({
-  weight: "400",
-  variable: "--font-inter",
-});
-
-const heroTitleFont = Faculty_Glyphic({
+  variable: "--font-sans",
   subsets: ["latin"],
-  weight: "400",
-  variable: "--font-hero-title",
 });
 
 export const metadata: Metadata = {
@@ -90,7 +26,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${heroTitleFont.variable}`}>
+    <html lang="en" className={`${inter.variable} ${geistMono.variable}`}>
       <head>
         {process.env.NODE_ENV === "development" && (
           <>
@@ -106,8 +42,7 @@ export default function RootLayout({
           </>
         )}
       </head>
-      <body
-      >
+      <body>
         <QueryProvider>{children}</QueryProvider>
       </body>
     </html>

@@ -27,10 +27,10 @@ export function RunbaseMark(props: SVGProps<SVGSVGElement>) {
           y2="7.5"
           gradientUnits="userSpaceOnUse"
         >
-          <stop stop-color="#CDFF29" />
-          <stop offset="0.320517" stop-color="#BCFF7A" />
-          <stop offset="0.745575" stop-color="#FF45C7" />
-          <stop offset="1" stop-color="#BF40FF" />
+          <stop stopColor="#CDFF29" />
+          <stop offset="0.320517" stopColor="#BCFF7A" />
+          <stop offset="0.745575" stopColor="#FF45C7" />
+          <stop offset="1" stopColor="#BF40FF" />
         </linearGradient>
       </defs>
     </svg>

@@ -53,3 +53,22 @@
 - Do not use CSS `clamp()`.
 - Always prioritize Tailwind CSS utility directives/classes for styling.
 - Use `motion/react` for UI entrance/interaction animation.
+
+## Client Async Data Policy
+
+- Client-side async data fetching MUST use TanStack Query (`useQuery`, `useMutation`).
+- Client components MUST NOT fetch app data with ad-hoc `fetch` calls inside `useEffect`.
+- Prefer server-loaded initial data and pass it as `initialData` to TanStack Query hooks.
+- Mutations MUST invalidate/update related query keys.
+
+## SVG Icon Rules (apps/web)
+
+- Place app icons in `components/icons`.
+- Use kebab-case filenames and PascalCase named exports (no default export).
+- Keep this structure for each icon component:
+  - `import * as React from "react";`
+  - `import type { SVGProps } from "react";`
+  - props type: `SVGProps<SVGSVGElement> & { color?: string }`
+  - component default color: `color = "currentColor"`
+  - SVG must include `viewBox="0 0 24 24"` for 24px icons
+- Use `fill={color}`/`stroke={color}` in paths so color can be controlled by parent styles.

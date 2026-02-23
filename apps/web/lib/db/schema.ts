@@ -145,6 +145,39 @@ export const workspaceMember = pgTable(
   ],
 );
 
+export const workspaceDomain = pgTable(
+  "workspace_domain",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    domain: text("domain").notNull(),
+    verificationStatus: text("verification_status")
+      .notNull()
+      .default("pending"),
+    verificationDetails: text("verification_details"),
+    verifiedAt: timestamp("verified_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    check(
+      "workspace_domain_verification_status_check",
+      sql`${table.verificationStatus} in ('pending', 'verified')`,
+    ),
+    index("workspace_domain_workspace_id_idx").on(table.workspaceId),
+    unique("workspace_domain_domain_unique").on(table.domain),
+    unique("workspace_domain_workspace_id_domain_unique").on(
+      table.workspaceId,
+      table.domain,
+    ),
+  ],
+);
+
 export const feedbackBoard = pgTable(
   "feedback_board",
   {
@@ -435,6 +468,7 @@ export const workspaceRelations = relations(workspace, ({ one, many }) => ({
     references: [user.id],
   }),
   members: many(workspaceMember),
+  domains: many(workspaceDomain),
   feedbackBoards: many(feedbackBoard),
   feedbackStatuses: many(feedbackStatus),
   feedbackPosts: many(feedbackPost),
@@ -453,6 +487,16 @@ export const workspaceMemberRelations = relations(
     user: one(user, {
       fields: [workspaceMember.userId],
       references: [user.id],
+    }),
+  }),
+);
+
+export const workspaceDomainRelations = relations(
+  workspaceDomain,
+  ({ one }) => ({
+    workspace: one(workspace, {
+      fields: [workspaceDomain.workspaceId],
+      references: [workspace.id],
     }),
   }),
 );

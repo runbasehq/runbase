@@ -1,22 +1,11 @@
 import type { Metadata } from "next";
-import { cookies, headers } from "next/headers";
-import { notFound, redirect } from "next/navigation";
-import { HydrationBoundary } from "@tanstack/react-query";
+import { notFound } from "next/navigation";
 
-import { auth } from "@/lib/auth";
-import { appRuntime } from "@/lib/runtime";
-import { protocol, rootDomain } from "@/lib/utils";
-import {
-  getUserWorkspaceMembershipBySlug,
-  getWorkspaceBySlug,
-} from "@/lib/workspaces";
-import { FeedbackDashboardShell } from "~/feedback";
-import { FeedbackService } from "~/feedback/feedback.service";
-import {
-  FEEDBACK_ANON_COOKIE,
-  isValidAnonSessionId,
-} from "~/feedback/lib/vote-session";
-import { buildPostsHydrationState } from "~/posts/lib/hydration";
+import { rootDomain } from "@/lib/utils";
+import { getWorkspaceBySlug } from "@/lib/workspaces";
+import { DashboardDomainManager } from "~/dashboard/components/dashboard-domain-manager";
+import { loadDomainsForWorkspace } from "~/domains/lib/load-domains.server";
+import { FeedbackResetPlaceholder } from "~/feedback/components/feedback-reset-placeholder";
 
 export async function generateMetadata({
   params,
@@ -48,65 +37,16 @@ export default async function WorkspaceDashboardPage({
     notFound();
   }
 
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user) {
-    const nextUrl = `${protocol}://${foundWorkspace.slug}.${rootDomain}/dashboard`;
-    redirect(
-      `${protocol}://${rootDomain}/sign-in?next=${encodeURIComponent(nextUrl)}`,
-    );
-  }
-
-  const membership = await getUserWorkspaceMembershipBySlug(
-    session.user.id,
-    foundWorkspace.slug,
-  );
-
-  if (!membership) {
-    notFound();
-  }
-
-  await appRuntime.runPromise(
-    FeedbackService.seedWorkspaceDefaults({ workspaceId: foundWorkspace.id }),
-  );
-
-  const cookieStore = await cookies();
-  const anonCookie = cookieStore.get(FEEDBACK_ANON_COOKIE)?.value ?? null;
-  const snapshot = await appRuntime.runPromise(
-    FeedbackService.getSnapshot({
-      workspaceId: foundWorkspace.id,
-      userId: session.user.id,
-      anonSessionId: isValidAnonSessionId(anonCookie) ? anonCookie : null,
-    }),
-  );
-
-  const workspaceSlug = `${foundWorkspace.slug}.${rootDomain}`;
-  const postsHydrationState = buildPostsHydrationState(workspaceSlug, snapshot);
-
-  const publicHref = `${protocol}://${foundWorkspace.slug}.${rootDomain}`;
-  const dashboardHref = `${publicHref}/dashboard`;
-  const signInHref = `${protocol}://${rootDomain}/sign-in?next=${encodeURIComponent(dashboardHref)}`;
-  const githubAuthEnabled = Boolean(
-    process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET,
-  );
+  const initialDomains = await loadDomainsForWorkspace(foundWorkspace.slug);
 
   return (
-    <HydrationBoundary state={postsHydrationState}>
-      <FeedbackDashboardShell
-        mode="dashboard"
-        workspaceName={foundWorkspace.name}
-        workspaceSlug={workspaceSlug}
-        viewerEmail={session.user.email}
-        snapshot={snapshot}
-        isAuthenticated={true}
-        dashboardHref={dashboardHref}
-        signInHref={signInHref}
-        callbackUrl={dashboardHref}
-        githubAuthEnabled={githubAuthEnabled}
-        publicHref={publicHref}
-      />
-    </HydrationBoundary>
+    <FeedbackResetPlaceholder
+      mode="dashboard"
+      workspaceName={foundWorkspace.name}
+    >
+      <div className="px-0 py-0">
+        <DashboardDomainManager initialDomains={initialDomains} />
+      </div>
+    </FeedbackResetPlaceholder>
   );
 }

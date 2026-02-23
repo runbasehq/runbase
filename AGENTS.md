@@ -27,6 +27,10 @@ For `apps/web`, organize domain code under `features/<feature-name>/...`.
 - Import feature modules via the `~` alias (`~/*` -> `apps/web/features/*`).
 - Example import: `~/auth/components/sign-in`
 
+## Web Client Async Data
+
+- For `apps/web`, client-side async data policy is defined in `apps/web/AGENTS.md` and is mandatory for web changes.
+
 ## Effect-TS Backend Architecture (Mandatory)
 
 - Backend/domain flow MUST be `route -> service -> repository`.
