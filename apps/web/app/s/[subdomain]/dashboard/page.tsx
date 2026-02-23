@@ -62,7 +62,10 @@ export default async function WorkspaceDashboardPage({
   }
 
   return (
-    <FeedbackResetPlaceholder mode="dashboard" workspaceName={foundWorkspace.name}>
+    <FeedbackResetPlaceholder
+      mode="dashboard"
+      workspaceName={foundWorkspace.name}
+    >
       <div className="px-0 py-0">
         <CustomDomainManager
           workspaceSlug={foundWorkspace.slug}
