@@ -17,12 +17,17 @@ import { useMemo, useState } from "react";
 
 import { FancyButton } from "@/components/ui/fancy-button";
 import { cn } from "@/lib/utils";
+import {
+  BILLING_DISCOUNT,
+  BILLING_PLAN_CATALOG,
+  getPriceForCycle,
+  getPricingSummaryCopy,
+  type BillingCycle,
+} from "~/billing/billing-plans";
 
 type PricingSectionProps = {
   className?: string;
 };
-
-type BillingCycle = "monthly" | "yearly";
 
 type PlanFeature = {
   icon: typeof NotificationIcon;
@@ -42,80 +47,46 @@ type PricingPlan = {
   priceLabel?: string;
 };
 
-const billingDiscount = 0.2;
+const iconByKey = {
+  notification: NotificationIcon,
+  file: File01Icon,
+  mail: MailIcon,
+  user: UserIcon,
+  settings: SettingsIcon,
+  credit_card: CreditCardIcon,
+  shield: ShieldIcon,
+  help: HelpCircleIcon,
+} as const;
 
-const pricingPlans: readonly PricingPlan[] = [
-  {
-    name: "Open Source",
-    priceLabel: "Free",
-    description: "Self-hosted deployment in your own infrastructure.",
-    ctaLabel: "Self deploy",
-    ctaHref: "https://github.com/jeresrc/runbase",
-    ctaTarget: "_blank",
-    features: [
-      { icon: NotificationIcon, label: "Feedback board" },
-      { icon: File01Icon, label: "Changelog publishing" },
-      { icon: MailIcon, label: "Unlimited conversations" },
-      { icon: UserIcon, label: "Unlimited seats" },
-      { icon: SettingsIcon, label: "Self-hosted deployment" },
-    ],
-    footnote: "No hosted free tier. Deploy it in your own infrastructure.",
-  },
-  {
-    name: "Growth",
-    accent: "growth",
-    monthlyPrice: 9,
-    description: "For teams shipping fast with clear ownership.",
-    ctaLabel: "Start growth trial",
-    ctaHref: "/sign-up",
-    features: [
-      { icon: NotificationIcon, label: "Feedback board" },
-      { icon: File01Icon, label: "Changelog publishing" },
-      { icon: MailIcon, label: "Unlimited conversations" },
-      { icon: UserIcon, label: "2 seats included" },
-      { icon: CreditCardIcon, label: "$4 per extra seat / month" },
-    ],
-    footnote: "Pay monthly. Cancel anytime.",
-  },
-  {
-    name: "Professional",
-    monthlyPrice: 19,
-    description: "For larger teams with higher collaboration volume.",
-    ctaLabel: "Start professional trial",
-    ctaHref: "/sign-up",
-    features: [
-      { icon: NotificationIcon, label: "Feedback board" },
-      { icon: File01Icon, label: "Changelog publishing" },
-      { icon: MailIcon, label: "Unlimited conversations" },
-      { icon: UserIcon, label: "10 seats included" },
-      { icon: CreditCardIcon, label: "$4 per extra seat / month" },
-    ],
-    footnote: "Pay monthly. Cancel anytime.",
-  },
-  {
-    name: "Enterprise",
-    accent: "enterprise",
-    priceLabel: "Custom",
-    description: "Security, SSO/SAML, migration support, and procurement.",
-    ctaLabel: "Contact sales",
-    ctaHref: "mailto:franciscover99@gmail.com",
-    features: [
-      { icon: ShieldIcon, label: "SSO/SAML and role controls" },
-      { icon: HelpCircleIcon, label: "Dedicated rollout support" },
-      { icon: SettingsIcon, label: "Migration assistance" },
-      { icon: CreditCardIcon, label: "Custom invoicing terms" },
-      { icon: UserIcon, label: "Custom seat allocation" },
-    ],
-    footnote: "Email us for custom contract terms.",
-  },
-] as const;
+const pricingPlans: readonly PricingPlan[] = BILLING_PLAN_CATALOG.map(
+  (plan) => ({
+    name: plan.name,
+    accent: plan.accent,
+    monthlyPrice: plan.monthlyPrice ?? undefined,
+    description: plan.description,
+    ctaLabel: plan.ctaLabel,
+    ctaHref: plan.ctaHref,
+    ctaTarget: plan.ctaTarget,
+    features: plan.marketingFeatures.map((feature) => ({
+      icon: iconByKey[feature.icon],
+      label: feature.label,
+    })),
+    footnote: plan.footnote,
+    priceLabel: plan.priceLabel ?? undefined,
+  }),
+);
 
 function getPrice(monthlyPrice: number, billingCycle: BillingCycle) {
-  if (billingCycle === "monthly") {
+  const matchingPlan = BILLING_PLAN_CATALOG.find(
+    (plan) => plan.monthlyPrice === monthlyPrice,
+  );
+
+  if (!matchingPlan) {
     return monthlyPrice;
   }
 
-  return Math.round(monthlyPrice * (1 - billingDiscount));
+  const value = getPriceForCycle(matchingPlan, billingCycle);
+  return typeof value === "number" ? value : monthlyPrice;
 }
 
 function getCellBorderClasses(index: number, total: number) {
@@ -187,7 +158,7 @@ function PricingCell({
             Billed {billingCycle}
             {billingCycle === "yearly" ? (
               <span className="ml-2 inline-flex items-center rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground">
-                Save 20%
+                Save {Math.round(BILLING_DISCOUNT * 100)}%
               </span>
             ) : null}
           </div>
@@ -273,8 +244,7 @@ export function PricingSection({ className }: PricingSectionProps) {
         </motion.h2>
 
         <p className="mx-auto mt-3 max-w-[980px] text-center text-[15px] font-medium leading-[1.48] tracking-[-0.01em] text-black/62 md:text-[17px]">
-          Growth includes 2 seats. Professional includes 10 seats. Extra seats
-          are $4 per seat/month.
+          {getPricingSummaryCopy()}
         </p>
 
         <div className="mt-7 flex justify-center md:mt-8">
@@ -303,7 +273,7 @@ export function PricingSection({ className }: PricingSectionProps) {
             >
               Pay yearly
               <span className="ml-2 inline-flex h-6 items-center rounded-full bg-primary px-2.5 text-[12px] font-semibold text-primary-foreground">
-                Save 20%
+                Save {Math.round(BILLING_DISCOUNT * 100)}%
               </span>
             </button>
           </div>
