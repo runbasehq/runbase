@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { RunbaseLogo } from "@/components/logos/runbase-logo";
 import { FancyButton } from "@/components/ui/fancy-button";
+import { HeroCompanyCta } from "~/marketing/components/hero-company-cta";
 
 export default function Page() {
   return (
@@ -64,12 +65,7 @@ export default function Page() {
               >
                 Login
               </Link>
-              <FancyButton.Root
-                asChild
-                variant="neutral"
-                size="small"
-                className="h-10 bg-black px-5 text-[14px] font-semibold text-white"
-              >
+              <FancyButton.Root asChild variant="neutral" size="small">
                 <Link href="/sign-up">Sign up</Link>
               </FancyButton.Root>
             </div>
@@ -85,6 +81,7 @@ export default function Page() {
             updates from one tool. Keep your margins and stop bleeding budget on
             overpriced software stacks.
           </p>
+          <HeroCompanyCta className="mt-10 md:mt-12" />
         </section>
       </div>
     </main>

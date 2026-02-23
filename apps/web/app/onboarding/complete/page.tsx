@@ -7,6 +7,7 @@ import {
   createWorkspaceForUser,
   getFirstWorkspaceMembershipForUser,
 } from "@/lib/workspaces";
+import { normalizeCompanyName } from "~/workspace/schemas/create-workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -30,8 +31,12 @@ export default async function OnboardingCompletePage({
   searchParams: Promise<OnboardingCompleteSearchParams>;
 }) {
   const resolvedSearchParams = await searchParams;
-  const companyName = readSingleParam(resolvedSearchParams.companyName);
-  const feedbackAccessRaw = readSingleParam(resolvedSearchParams.feedbackAccess);
+  const companyName = normalizeCompanyName(
+    readSingleParam(resolvedSearchParams.companyName),
+  );
+  const feedbackAccessRaw = readSingleParam(
+    resolvedSearchParams.feedbackAccess,
+  );
   const primaryGoalRaw = readSingleParam(resolvedSearchParams.primaryGoal);
   const feedbackAccess = feedbackAccessRaw === "public" ? "public" : "private";
   const primaryGoal =
@@ -45,7 +50,15 @@ export default async function OnboardingCompletePage({
 
   if (!session?.user) {
     const nextPath = `/onboarding/complete?companyName=${encodeURIComponent(companyName)}&feedbackAccess=${feedbackAccess}&primaryGoal=${primaryGoal}`;
-    redirect(`/sign-in?next=${encodeURIComponent(nextPath)}`);
+    const signInSearchParams = new URLSearchParams({
+      next: nextPath,
+    });
+
+    if (companyName) {
+      signInSearchParams.set("companyName", companyName);
+    }
+
+    redirect(`/sign-in?${signInSearchParams.toString()}`);
   }
 
   const existingMembership = await getFirstWorkspaceMembershipForUser(

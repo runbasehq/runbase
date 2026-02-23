@@ -2,8 +2,12 @@ export type CreateWorkspaceInput = {
   companyName: string;
 };
 
+export function normalizeCompanyName(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
 export function validateCreateWorkspaceInput(input: CreateWorkspaceInput) {
-  const companyName = input.companyName.trim().replace(/\s+/g, " ");
+  const companyName = normalizeCompanyName(input.companyName);
 
   if (!companyName) {
     return "Company name is required";

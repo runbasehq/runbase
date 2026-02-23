@@ -13,61 +13,54 @@ const FANCY_BUTTON_ICON_NAME = "FancyButtonIcon";
 export const fancyButtonVariants = tv({
   slots: {
     root: [
-      "group relative inline-flex items-center justify-center whitespace-nowrap text-sm font-medium outline-none",
-      "transition duration-200 ease-out",
-      "focus-visible:ring-2 focus-visible:ring-ring/30",
-      "disabled:pointer-events-none disabled:opacity-50",
+      "group relative inline-flex items-center justify-center overflow-hidden whitespace-nowrap border font-semibold leading-none outline-none select-none",
+      "transition-[transform,filter,box-shadow,background-color,color,border-color,opacity] duration-200 ease-out",
+      "focus-visible:ring-2 focus-visible:ring-ring/35 focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+      "active:translate-y-px",
+      "disabled:pointer-events-none disabled:opacity-55",
+      "shadow-[0_1px_0_0_rgba(255,255,255,0.32)_inset,0_-2px_0_0_rgba(17,18,20,0.14)_inset,0_10px_16px_-14px_rgba(17,18,20,0.35)]",
     ],
-    icon: "relative z-10 size-5 shrink-0",
+    icon: "relative z-10 shrink-0",
   },
   variants: {
     variant: {
       neutral: {
-        root: "border-transparent bg-(--text) text-white shadow-(--shadow-fancy-neutral)",
+        root: [
+          "border-foreground/15 bg-foreground text-background",
+          "hover:bg-foreground/92",
+        ],
       },
       primary: {
-        root: "border-transparent bg-primary text-primary-foreground shadow-(--shadow-fancy-neutral)",
+        root: [
+          "border-primary/70 bg-primary text-primary-foreground",
+          "hover:bg-primary/90",
+        ],
       },
       destructive: {
-        root: "border-transparent bg-destructive text-white shadow-(--shadow-fancy-neutral)",
+        root: [
+          "border-destructive/65 bg-destructive text-white",
+          "hover:bg-destructive/92",
+        ],
       },
       basic: {
-        root: [
-          "border-(--border) bg-(--surface) text-(--muted) shadow-(--shadow-fancy-stroke)",
-          "hover:bg-(--surface-2) hover:text-(--text) hover:shadow-none",
-        ],
+        root: ["border-border bg-card text-foreground", "hover:bg-muted/70"],
       },
     },
     size: {
       medium: {
-        root: "h-10 gap-3 rounded-[10px] px-3.5",
-        icon: "-mx-1",
+        root: "h-11 gap-2.5 rounded-[11px] px-5 text-[15px]",
+        icon: "size-5 -mx-0.5",
       },
       small: {
-        root: "h-9 gap-3 rounded-lg px-3",
-        icon: "-mx-1",
+        root: "h-10 gap-2 rounded-[10px] px-4 text-[14px]",
+        icon: "size-[18px] -mx-0.5",
       },
       xsmall: {
-        root: "h-8 gap-3 rounded-lg px-2.5",
-        icon: "-mx-1",
+        root: "h-9 gap-1.5 rounded-[9px] px-3 text-[13px]",
+        icon: "size-4 -mx-0.5",
       },
     },
   },
-  compoundVariants: [
-    {
-      variant: ["neutral", "primary", "destructive"],
-      class: {
-        root: [
-          "before:pointer-events-none before:absolute before:inset-0 before:z-10 before:rounded-[inherit]",
-          "before:bg-linear-to-b before:from-white/20 before:to-transparent before:p-px",
-          "before:[mask-clip:content-box,border-box] before:[mask-composite:exclude] before:[mask-image:linear-gradient(#fff_0_0),linear-gradient(#fff_0_0)]",
-          "after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:bg-linear-to-b after:from-white/80 after:to-transparent",
-          "after:opacity-15 after:transition after:duration-200 after:ease-out",
-          "hover:after:opacity-25",
-        ],
-      },
-    },
-  ],
   defaultVariants: {
     variant: "neutral",
     size: "medium",

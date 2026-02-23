@@ -9,12 +9,19 @@ import {
 } from "@/app/onboarding/actions";
 import { RunbaseMark } from "@/components/logos/runbase-mark";
 import { rootDomain } from "@/lib/utils";
+import { normalizeCompanyName } from "~/workspace/schemas/create-workspace";
 import { sanitizeWorkspaceSlug } from "~/workspace/schemas/workspace-slug";
 
 const initialState: CreateWorkspaceState = {};
 
-export function OnboardingForm() {
-  const [companyName, setCompanyName] = useState("");
+export function OnboardingForm({
+  initialCompanyName = "",
+}: {
+  initialCompanyName?: string;
+}) {
+  const [companyName, setCompanyName] = useState(() =>
+    normalizeCompanyName(initialCompanyName),
+  );
   const [state, action, isPending] = useActionState(
     createWorkspaceAction,
     initialState,

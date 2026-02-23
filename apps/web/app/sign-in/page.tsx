@@ -7,10 +7,32 @@ import { auth } from "@/lib/auth";
 import { protocol, rootDomain } from "@/lib/utils";
 import { getFirstWorkspaceMembershipForUser } from "@/lib/workspaces";
 import { SignIn } from "~/auth/components/sign-in";
+import { normalizeCompanyName } from "~/workspace/schemas/create-workspace";
 
 export const dynamic = "force-dynamic";
 
-export default async function SignInPage() {
+type SignInSearchParams = {
+  companyName?: string | string[];
+};
+
+function readSingleParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+
+  return value ?? "";
+}
+
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<SignInSearchParams>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const companyName = normalizeCompanyName(
+    readSingleParam(resolvedSearchParams.companyName),
+  );
+
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -26,7 +48,11 @@ export default async function SignInPage() {
       );
     }
 
-    redirect("/onboarding");
+    const onboardingPath = companyName
+      ? `/onboarding?companyName=${encodeURIComponent(companyName)}`
+      : "/onboarding";
+
+    redirect(onboardingPath);
   }
 
   const githubAuthEnabled = Boolean(

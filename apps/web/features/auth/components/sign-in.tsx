@@ -10,7 +10,10 @@ import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import { rootDomain } from "@/lib/utils";
 import { type AuthMode, validateSignInInput } from "~/auth/schemas/sign-in";
-import { validateCreateWorkspaceInput } from "~/workspace/schemas/create-workspace";
+import {
+  normalizeCompanyName,
+  validateCreateWorkspaceInput,
+} from "~/workspace/schemas/create-workspace";
 import { sanitizeWorkspaceSlug } from "~/workspace/schemas/workspace-slug";
 
 type FeedbackAccess = "public" | "private";
@@ -81,6 +84,30 @@ function isAbsoluteUrl(path: string) {
   return path.startsWith("http://") || path.startsWith("https://");
 }
 
+function buildAuthHref({
+  pathname,
+  nextPath,
+  companyName,
+}: {
+  pathname: "/sign-in" | "/sign-up";
+  nextPath: string;
+  companyName?: string;
+}) {
+  const params = new URLSearchParams();
+
+  if (nextPath) {
+    params.set("next", nextPath);
+  }
+
+  const normalizedCompanyName = normalizeCompanyName(companyName ?? "");
+  if (normalizedCompanyName) {
+    params.set("companyName", normalizedCompanyName);
+  }
+
+  const queryString = params.toString();
+  return queryString ? `${pathname}?${queryString}` : pathname;
+}
+
 export function SignIn({
   githubAuthEnabled,
   mode,
@@ -94,12 +121,16 @@ export function SignIn({
     () => toSafeRedirect(searchParams.get("next")),
     [searchParams],
   );
+  const companyNameFromQuery = useMemo(
+    () => normalizeCompanyName(searchParams.get("companyName") ?? ""),
+    [searchParams],
+  );
 
   const [signUpStep, setSignUpStep] = useState<SignUpStep>("goal");
   const [feedbackAccess, setFeedbackAccess] =
     useState<FeedbackAccess>("public");
   const [selectedGoal, setSelectedGoal] = useState<GoalOptionId>(primaryGoal);
-  const [companyName, setCompanyName] = useState("");
+  const [companyName, setCompanyName] = useState(companyNameFromQuery);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -111,6 +142,24 @@ export function SignIn({
   const previewSlug = useMemo(
     () => sanitizeWorkspaceSlug(companyName),
     [companyName],
+  );
+  const signInHref = useMemo(
+    () =>
+      buildAuthHref({
+        pathname: "/sign-in",
+        nextPath,
+        companyName: companyName || companyNameFromQuery,
+      }),
+    [companyName, companyNameFromQuery, nextPath],
+  );
+  const signUpHref = useMemo(
+    () =>
+      buildAuthHref({
+        pathname: "/sign-up",
+        nextPath,
+        companyName: companyNameFromQuery,
+      }),
+    [companyNameFromQuery, nextPath],
   );
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -260,7 +309,7 @@ export function SignIn({
               setError(null);
               setSignUpStep("access");
             }}
-            className="h-11 w-full cursor-pointer rounded-xl bg-zinc-950 text-sm font-semibold text-white shadow-none before:hidden after:hidden hover:opacity-90"
+            className="w-full"
           >
             Continue
           </FancyButton.Root>
@@ -268,7 +317,7 @@ export function SignIn({
           <p className="text-center text-sm font-medium text-zinc-500">
             Already have an account?{" "}
             <Link
-              href="/sign-in"
+              href={signInHref}
               className="text-blue-600 transition-colors hover:text-blue-700"
             >
               Sign in
@@ -335,7 +384,7 @@ export function SignIn({
                 setError(null);
                 setSignUpStep("goal");
               }}
-              className="h-11 cursor-pointer rounded-xl border-zinc-300 bg-white text-sm font-medium text-zinc-700 shadow-none hover:bg-zinc-50 hover:text-zinc-900"
+              className="w-full"
             >
               Back
             </FancyButton.Root>
@@ -348,7 +397,7 @@ export function SignIn({
                 setError(null);
                 setSignUpStep("account");
               }}
-              className="h-11 cursor-pointer rounded-xl bg-zinc-950 text-sm font-semibold text-white shadow-none before:hidden after:hidden hover:opacity-90"
+              className="w-full"
             >
               Continue
             </FancyButton.Root>
@@ -433,7 +482,7 @@ export function SignIn({
             variant="basic"
             size="medium"
             onClick={() => setSignUpStep("access")}
-            className="h-11 cursor-pointer rounded-xl border-zinc-300 bg-white text-sm font-medium text-zinc-700 shadow-none hover:bg-zinc-50 hover:text-zinc-900"
+            className="w-full"
           >
             Back
           </FancyButton.Root>
@@ -443,7 +492,7 @@ export function SignIn({
             variant="neutral"
             size="medium"
             disabled={isActionPending}
-            className="h-11 cursor-pointer rounded-xl bg-zinc-950 text-sm font-semibold text-white shadow-none before:hidden after:hidden hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full"
           >
             {isPending ? "Creating..." : "Create account"}
           </FancyButton.Root>
@@ -452,7 +501,7 @@ export function SignIn({
         <p className="w-full text-center text-sm font-medium text-zinc-500">
           Already have an account?{" "}
           <Link
-            href="/sign-in"
+            href={signInHref}
             className="text-blue-600 transition-colors hover:text-blue-700"
           >
             Sign in
@@ -541,7 +590,7 @@ export function SignIn({
         variant="neutral"
         size="medium"
         disabled={isActionPending}
-        className="h-11 w-full rounded-xl bg-zinc-950 text-sm font-semibold text-white shadow-none before:hidden after:hidden hover:opacity-90 disabled:opacity-60"
+        className="w-full"
       >
         {isPending ? "Signing in..." : "Log in"}
       </FancyButton.Root>
@@ -549,7 +598,7 @@ export function SignIn({
       <p className="w-full text-center text-sm font-medium text-zinc-500">
         Need an account?{" "}
         <Link
-          href="/sign-up"
+          href={signUpHref}
           className="text-blue-600 transition-colors hover:text-blue-700"
         >
           Sign up
