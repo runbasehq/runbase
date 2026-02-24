@@ -17,6 +17,7 @@ import {
 } from "@/lib/db/schema";
 import { WorkspaceInviteEmail } from "~/workspace-members/email/workspace-invite-email";
 import type {
+  UserWorkspaceInvitationView,
   WorkspaceInvitationView,
   WorkspaceMemberRole,
   WorkspaceMemberView,
@@ -118,6 +119,26 @@ function toInvitationView(row: {
     invitedByName: row.invitedByName,
     createdAt: row.createdAt.toISOString(),
     lastSentAt: row.lastSentAt ? row.lastSentAt.toISOString() : null,
+  };
+}
+
+function toUserInvitationView(row: {
+  id: string;
+  workspaceName: string;
+  workspaceSlug: string;
+  role: string;
+  invitedByName: string;
+  createdAt: Date;
+  expiresAt: Date;
+}): UserWorkspaceInvitationView {
+  return {
+    id: row.id,
+    workspaceName: row.workspaceName,
+    workspaceSlug: row.workspaceSlug,
+    role: toMemberRole(row.role),
+    invitedByName: row.invitedByName,
+    createdAt: row.createdAt.toISOString(),
+    expiresAt: row.expiresAt.toISOString(),
   };
 }
 
@@ -552,6 +573,126 @@ export class WorkspaceMembersRepository extends Effect.Service<WorkspaceMembersR
                 .orderBy(desc(workspaceInvitation.createdAt));
 
               return rows.map(toInvitationView);
+            },
+          ),
+      );
+
+      const listPendingInvitationsForEmail = Effect.fn(
+        "WorkspaceMembersRepository.listPendingInvitationsForEmail",
+      )(
+        ({
+          email,
+        }: {
+          email: string;
+        }): Effect.Effect<
+          UserWorkspaceInvitationView[],
+          WorkspaceMembersPersistenceError
+        > =>
+          fromPersistencePromise(
+            "workspaceMembers.listPendingInvitationsForEmail",
+            async () => {
+              const rows = await db
+                .select({
+                  id: workspaceInvitation.id,
+                  workspaceName: workspace.name,
+                  workspaceSlug: workspace.slug,
+                  role: workspaceInvitation.role,
+                  invitedByName: user.name,
+                  createdAt: workspaceInvitation.createdAt,
+                  expiresAt: workspaceInvitation.expiresAt,
+                })
+                .from(workspaceInvitation)
+                .innerJoin(
+                  workspace,
+                  eq(workspaceInvitation.workspaceId, workspace.id),
+                )
+                .innerJoin(
+                  user,
+                  eq(workspaceInvitation.invitedByUserId, user.id),
+                )
+                .where(
+                  and(
+                    eq(workspaceInvitation.email, email),
+                    eq(workspaceInvitation.status, "pending"),
+                    sql`${workspaceInvitation.expiresAt} > now()`,
+                  ),
+                )
+                .orderBy(desc(workspaceInvitation.createdAt));
+
+              return rows.map(toUserInvitationView);
+            },
+          ),
+      );
+
+      const getPendingInvitationForEmailById = Effect.fn(
+        "WorkspaceMembersRepository.getPendingInvitationForEmailById",
+      )(
+        ({
+          email,
+          invitationId,
+        }: {
+          email: string;
+          invitationId: string;
+        }): Effect.Effect<
+          WorkspaceInvitationRecord | null,
+          WorkspaceMembersPersistenceError
+        > =>
+          fromPersistencePromise(
+            "workspaceMembers.getPendingInvitationForEmailById",
+            async () => {
+              const [row] = await db
+                .select({
+                  id: workspaceInvitation.id,
+                  workspaceId: workspaceInvitation.workspaceId,
+                  workspaceName: workspace.name,
+                  workspaceSlug: workspace.slug,
+                  email: workspaceInvitation.email,
+                  role: workspaceInvitation.role,
+                  tokenHash: workspaceInvitation.tokenHash,
+                  status: workspaceInvitation.status,
+                  expiresAt: workspaceInvitation.expiresAt,
+                  invitedByUserId: workspaceInvitation.invitedByUserId,
+                  invitedByName: user.name,
+                  createdAt: workspaceInvitation.createdAt,
+                  lastSentAt: workspaceInvitation.lastSentAt,
+                })
+                .from(workspaceInvitation)
+                .innerJoin(
+                  workspace,
+                  eq(workspaceInvitation.workspaceId, workspace.id),
+                )
+                .innerJoin(
+                  user,
+                  eq(workspaceInvitation.invitedByUserId, user.id),
+                )
+                .where(
+                  and(
+                    eq(workspaceInvitation.id, invitationId),
+                    eq(workspaceInvitation.email, email),
+                    eq(workspaceInvitation.status, "pending"),
+                  ),
+                )
+                .limit(1);
+
+              if (!row) {
+                return null;
+              }
+
+              return {
+                id: row.id,
+                workspaceId: row.workspaceId,
+                workspaceName: row.workspaceName,
+                workspaceSlug: row.workspaceSlug,
+                email: row.email,
+                role: toMemberRole(row.role),
+                tokenHash: row.tokenHash,
+                status: toInvitationStatus(row.status),
+                expiresAt: row.expiresAt,
+                invitedByUserId: row.invitedByUserId,
+                invitedByName: row.invitedByName,
+                createdAt: row.createdAt,
+                lastSentAt: row.lastSentAt,
+              };
             },
           ),
       );
@@ -1188,11 +1329,13 @@ export class WorkspaceMembersRepository extends Effect.Service<WorkspaceMembersR
         countWorkspaceAdmins,
         createWorkspaceInvitation,
         findWorkspaceMemberByEmail,
+        getPendingInvitationForEmailById,
         getPendingWorkspaceInvitationByEmail,
         getWorkspaceInvitationById,
         getWorkspaceInvitationByTokenHash,
         getWorkspaceMemberById,
         getWorkspaceMembershipBySlug,
+        listPendingInvitationsForEmail,
         listWorkspaceMembershipsForUser,
         listWorkspaceInvitations,
         listWorkspaceMembers,

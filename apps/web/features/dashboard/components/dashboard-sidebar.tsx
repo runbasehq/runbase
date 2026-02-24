@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { Kbd } from "@/components/ui/kbd";
 import { cn, protocol, rootDomain } from "@/lib/utils";
+import { DashboardNotificationsButton } from "~/dashboard/components/dashboard-notifications-button";
 import { useDashboardRuntime } from "~/dashboard/components/dashboard-runtime-context";
 import { DashboardWorkspaceSwitcher } from "~/dashboard/components/dashboard-workspace-switcher";
 import type { DashboardWorkspaceOption } from "~/dashboard/components/dashboard-shell";
@@ -262,6 +263,7 @@ export function DashboardSidebar({
             <p className="min-w-0 truncate text-xs font-medium text-(--text)">
               {user.name || user.email || "You"}
             </p>
+            <DashboardNotificationsButton />
           </div>
         </div>
       </div>

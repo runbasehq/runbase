@@ -19,6 +19,10 @@ const InvitationParamsSchema = Schema.Struct({
   invitationId: Schema.String,
 });
 
+const UserInvitationParamsSchema = Schema.Struct({
+  invitationId: Schema.String,
+});
+
 const UpdateMemberRoleBodySchema = Schema.Struct({
   role: Schema.String,
 });
@@ -107,6 +111,10 @@ export interface InvitationParamsInput {
   invitationId: string;
 }
 
+export interface UserInvitationParamsInput {
+  invitationId: string;
+}
+
 export interface UpdateMemberRoleInput {
   role: WorkspaceMemberRole;
 }
@@ -184,6 +192,25 @@ export const decodeInvitationParams = (raw: unknown) =>
     }
 
     return { workspaceSlug, invitationId } satisfies InvitationParamsInput;
+  });
+
+export const decodeUserInvitationParams = (raw: unknown) =>
+  Effect.gen(function* () {
+    const decoded = yield* Schema.decodeUnknown(UserInvitationParamsSchema)(
+      raw,
+    );
+    const { value: invitationId, error: invitationError } = validateNonEmptyId(
+      decoded.invitationId,
+      "Invitation id",
+    );
+
+    if (invitationError || !invitationId) {
+      return yield* new WorkspaceMembersInvalidInput({
+        message: invitationError || "Invitation id is required",
+      });
+    }
+
+    return { invitationId } satisfies UserInvitationParamsInput;
   });
 
 export const decodeUpdateMemberRoleInput = (raw: unknown) =>

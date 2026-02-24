@@ -1,4 +1,5 @@
 import type {
+  UserWorkspaceInvitationView,
   WorkspaceInvitationView,
   WorkspaceMemberRole,
   WorkspaceMemberView,
@@ -33,6 +34,12 @@ export async function fetchWorkspaceInvitations(workspaceSlug: string) {
     invitations: WorkspaceInvitationView[];
     permissions: WorkspaceTeamPermissions;
   }>(`/api/workspaces/${encodeURIComponent(workspaceSlug)}/invitations`);
+}
+
+export async function fetchUserWorkspaceInvitations() {
+  return requestJson<{
+    invitations: UserWorkspaceInvitationView[];
+  }>("/api/workspace-invitations");
 }
 
 export async function inviteWorkspaceMember({
@@ -112,6 +119,32 @@ export async function resendWorkspaceInvitation({
 }) {
   return requestJson<{ invitation: WorkspaceInvitationView }>(
     `/api/workspaces/${encodeURIComponent(workspaceSlug)}/invitations/${encodeURIComponent(invitationId)}/resend`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function acceptUserWorkspaceInvitation({
+  invitationId,
+}: {
+  invitationId: string;
+}) {
+  return requestJson<{ success: true; workspaceSlug: string }>(
+    `/api/workspace-invitations/${encodeURIComponent(invitationId)}/accept`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function rejectUserWorkspaceInvitation({
+  invitationId,
+}: {
+  invitationId: string;
+}) {
+  return requestJson<{ success: true; invitationId: string }>(
+    `/api/workspace-invitations/${encodeURIComponent(invitationId)}/reject`,
     {
       method: "POST",
     },

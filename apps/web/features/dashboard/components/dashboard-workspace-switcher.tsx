@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn, protocol, rootDomain } from "@/lib/utils";
+import { WorkspaceSignOutButton } from "~/workspace/components/workspace-sign-out-button";
 
 interface DashboardWorkspaceItem {
   connectedDomain?: string | null;
@@ -291,6 +292,13 @@ export function DashboardWorkspaceSwitcher({
                 <IconPlusCircle className="size-4 text-(--muted-2)" />
                 <span className="font-medium">Create workspace</span>
               </DropdownMenuItem>
+            </div>
+
+            <div className="mt-3 border-t border-(--sidebar-border) pt-2">
+              <WorkspaceSignOutButton
+                className="h-9 w-full cursor-pointer justify-center rounded-lg border-(--sidebar-border) bg-(--sidebar) px-2 text-sm font-medium text-(--text) hover:bg-black/7"
+                errorClassName="w-full px-1 text-left"
+              />
             </div>
           </div>
         </DropdownMenuContent>

@@ -48,6 +48,10 @@ function isWithinCooldown(lastSentAt: Date | null) {
   return Date.now() - lastSentAt.getTime() < INVITATION_RESEND_COOLDOWN_MS;
 }
 
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
 export class WorkspaceMembersService extends Effect.Service<WorkspaceMembersService>()(
   "WorkspaceMembersService",
   {
@@ -149,6 +153,22 @@ export class WorkspaceMembersService extends Effect.Service<WorkspaceMembersServ
           userId,
         }),
       );
+
+      const listPendingInvitationsForUser = Effect.fn(
+        "WorkspaceMembersService.listPendingInvitationsForUser",
+      )(({ userEmail }: { userEmail: string }) => {
+        const email = normalizeEmail(userEmail);
+
+        if (!email) {
+          return Effect.fail(
+            new WorkspaceMembersInvalidInput({
+              message: "User email is required",
+            }),
+          );
+        }
+
+        return repository.listPendingInvitationsForEmail({ email });
+      });
 
       const inviteMember = Effect.fn("WorkspaceMembersService.inviteMember")(
         ({
@@ -563,12 +583,147 @@ export class WorkspaceMembersService extends Effect.Service<WorkspaceMembersServ
           }),
       );
 
+      const acceptPendingInvitation = Effect.fn(
+        "WorkspaceMembersService.acceptPendingInvitation",
+      )(
+        ({
+          invitationId,
+          userEmail,
+          userId,
+        }: {
+          invitationId: string;
+          userEmail: string;
+          userId: string;
+        }) =>
+          Effect.gen(function* () {
+            const email = normalizeEmail(userEmail);
+
+            if (!email) {
+              return yield* new WorkspaceMembersInvalidInput({
+                message: "User email is required",
+              });
+            }
+
+            const invitation =
+              yield* repository.getPendingInvitationForEmailById({
+                email,
+                invitationId,
+              });
+
+            if (!invitation) {
+              return yield* new WorkspaceMembersInvitationNotFound({
+                invitationId,
+              });
+            }
+
+            if (isExpired(invitation.expiresAt)) {
+              yield* repository.markWorkspaceInvitationExpired({
+                invitationId: invitation.id,
+              });
+              return yield* new WorkspaceMembersInvitationExpired({});
+            }
+
+            const seatCapacity = yield* BillingService.assertSeatCapacity({
+              workspaceId: invitation.workspaceId,
+              additionalSeats: 0,
+            }).pipe(
+              Effect.catchAll(() =>
+                Effect.fail(
+                  new WorkspaceMembersPersistenceError({
+                    operation: "workspaceMembers.assertSeatCapacity",
+                  }),
+                ),
+              ),
+            );
+
+            if (
+              !seatCapacity.allowed &&
+              typeof seatCapacity.seatLimit === "number" &&
+              typeof seatCapacity.seatsUsed === "number"
+            ) {
+              return yield* new WorkspaceMembersSeatLimitExceeded({
+                seatLimit: seatCapacity.seatLimit,
+                seatsUsed: seatCapacity.seatsUsed,
+                seatsRequested: seatCapacity.seatsRequested,
+              });
+            }
+
+            const member = yield* repository.addWorkspaceMemberIfMissing({
+              workspaceId: invitation.workspaceId,
+              userId,
+              role: invitation.role,
+            });
+            yield* repository.markWorkspaceInvitationAccepted({
+              invitationId: invitation.id,
+            });
+
+            if (!member) {
+              return yield* new WorkspaceMembersInvitationNotFound({
+                invitationId,
+              });
+            }
+
+            return {
+              member,
+              workspaceName: invitation.workspaceName,
+              workspaceSlug: invitation.workspaceSlug,
+            };
+          }),
+      );
+
+      const rejectPendingInvitation = Effect.fn(
+        "WorkspaceMembersService.rejectPendingInvitation",
+      )(
+        ({
+          invitationId,
+          userEmail,
+        }: {
+          invitationId: string;
+          userEmail: string;
+        }) =>
+          Effect.gen(function* () {
+            const email = normalizeEmail(userEmail);
+
+            if (!email) {
+              return yield* new WorkspaceMembersInvalidInput({
+                message: "User email is required",
+              });
+            }
+
+            const invitation =
+              yield* repository.getPendingInvitationForEmailById({
+                email,
+                invitationId,
+              });
+
+            if (!invitation) {
+              return yield* new WorkspaceMembersInvitationNotFound({
+                invitationId,
+              });
+            }
+
+            if (isExpired(invitation.expiresAt)) {
+              yield* repository.markWorkspaceInvitationExpired({
+                invitationId: invitation.id,
+              });
+              return { invitationId: invitation.id };
+            }
+
+            yield* repository.markWorkspaceInvitationCanceled({ invitationId });
+
+            return { invitationId };
+          }),
+      );
+
       return {
+        acceptPendingInvitation,
         acceptInvitation,
         cancelInvitation,
         inviteMember,
+        listPendingInvitationsForUser,
         listWorkspaceMembershipsForUser,
         listTeamSnapshot,
+        rejectPendingInvitation,
         removeMember,
         resendInvitation,
         updateMemberRole,

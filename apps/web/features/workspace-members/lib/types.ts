@@ -26,6 +26,16 @@ export interface WorkspaceInvitationView {
   lastSentAt: string | null;
 }
 
+export interface UserWorkspaceInvitationView {
+  id: string;
+  workspaceName: string;
+  workspaceSlug: string;
+  role: WorkspaceMemberRole;
+  invitedByName: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
 export interface WorkspaceTeamPermissions {
   canManageMembers: boolean;
   currentRole: WorkspaceMemberRole;
