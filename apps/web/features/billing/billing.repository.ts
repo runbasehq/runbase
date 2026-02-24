@@ -677,18 +677,19 @@ export class BillingRepository extends Effect.Service<BillingRepository>()(
                 });
               }
 
-              const trialEnd = readString(data.trial_end);
+              const data = checkout as Record<string, unknown>;
+              const trialEnd = readString(data.trial_end ?? data.trialEnd);
 
               return {
                 checkoutUrl: url,
                 isPaymentFormRequired: readOptionalBoolean(
-                  data.is_payment_form_required,
+                  data.is_payment_form_required ?? data.isPaymentFormRequired,
                 ),
                 isPaymentRequired: readOptionalBoolean(
-                  data.is_payment_required,
+                  data.is_payment_required ?? data.isPaymentRequired,
                 ),
                 isPaymentSetupRequired: readOptionalBoolean(
-                  data.is_payment_setup_required,
+                  data.is_payment_setup_required ?? data.isPaymentSetupRequired,
                 ),
                 trialEnd,
               };
