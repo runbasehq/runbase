@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { defaultKeywords } from "@/lib/seo";
 import { getWorkspaceBySlug } from "@/lib/workspaces";
 import { protocol, rootDomain } from "@/lib/utils";
-import { FeedbackResetPlaceholder } from "~/feedback/components/feedback-reset-placeholder";
+import { PublicFeedbackPage } from "~/feedback/components/public-feedback-page";
+import { getPublicFeedbackPageData } from "~/feedback/server/get-public-feedback-page-data";
 
 export async function generateMetadata({
   params,
@@ -71,16 +72,20 @@ export default async function WorkspacePublicPage({
   params: Promise<{ subdomain: string }>;
 }) {
   const { subdomain } = await params;
-  const foundWorkspace = await getWorkspaceBySlug(subdomain);
-
-  if (!foundWorkspace) {
+  const pageData = await getPublicFeedbackPageData(subdomain);
+  if (!pageData) {
     notFound();
   }
 
   return (
-    <FeedbackResetPlaceholder
-      mode="public"
-      workspaceName={foundWorkspace.name}
+    <PublicFeedbackPage
+      workspaceSlug={pageData.workspaceSlug}
+      workspaceName={pageData.workspaceName}
+      initialPosts={pageData.initialPosts}
+      isAuthenticated={pageData.isAuthenticated}
+      githubAuthEnabled={pageData.githubAuthEnabled}
+      defaultBoard={pageData.defaultBoard}
+      defaultStatus={pageData.defaultStatus}
     />
   );
 }

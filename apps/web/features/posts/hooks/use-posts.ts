@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import type { FeedbackPostItem } from "~/feedback/lib/types";
 
-import { fetchFeedbackPosts } from "../lib/posts-api";
+import { fetchFeedbackPostsForWorkspace } from "../lib/posts-api";
 import { postsQueryKeys } from "../lib/query-keys";
 
 interface UsePostsOptions {
@@ -15,7 +15,7 @@ interface UsePostsOptions {
 export function usePosts({ workspaceSlug, initialPosts }: UsePostsOptions) {
   return useQuery({
     queryKey: postsQueryKeys.byWorkspace(workspaceSlug),
-    queryFn: fetchFeedbackPosts,
+    queryFn: () => fetchFeedbackPostsForWorkspace(workspaceSlug),
     initialData: initialPosts,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,

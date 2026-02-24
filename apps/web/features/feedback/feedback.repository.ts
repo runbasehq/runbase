@@ -4,11 +4,14 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { Effect } from "effect";
 
 import { db } from "@/lib/db";
+import { getRedis } from "@/lib/redis";
 import {
   feedbackBoard,
+  feedbackComment,
   feedbackPost,
   feedbackStatus,
   feedbackVote,
+  user,
   workspace,
   workspaceMember,
 } from "@/lib/db/schema";
@@ -18,13 +21,18 @@ import {
 } from "~/feedback/lib/rate-limit";
 import type {
   FeedbackBoardItem,
+  FeedbackCommentItem,
   FeedbackPostItem,
   FeedbackSnapshot,
   FeedbackStatusItem,
+  FeedbackVoteSyncResult,
   VoteIdentity,
 } from "~/feedback/lib/types";
 
-import type { CreateFeedbackPostInput } from "./feedback.schema";
+import type {
+  CreateFeedbackCommentInput,
+  CreateFeedbackPostInput,
+} from "./feedback.schema";
 import {
   FeedbackInvalidBoard,
   FeedbackNoBoardConfigured,
@@ -57,6 +65,24 @@ export interface FeedbackVoteRateLimitParams {
   workspaceId: string;
   postId: string;
   ip: string;
+}
+
+export interface CreateFeedbackCommentParams {
+  workspaceId: string;
+  postId: string;
+  authorUserId: string;
+  input: CreateFeedbackCommentInput;
+}
+
+export interface ListFeedbackCommentsParams {
+  workspaceId: string;
+  postId: string;
+}
+
+export interface ClaimAnonymousVotesParams {
+  workspaceId: string;
+  userId: string;
+  anonSessionId: string;
 }
 
 export interface FeedbackWorkspaceAccessRecord {
@@ -221,6 +247,25 @@ const getPostCount = (workspaceId: string, postId: string) =>
 
     return post?.upvoteCount ?? null;
   });
+
+const VOTE_SYNC_DONE_TTL_SECONDS = 60 * 60 * 24 * 30;
+const VOTE_SYNC_LOCK_TTL_SECONDS = 10;
+
+function getVoteSyncRedis() {
+  try {
+    return getRedis();
+  } catch {
+    return null;
+  }
+}
+
+function buildVoteSyncKeys(input: ClaimAnonymousVotesParams) {
+  const base = `${input.workspaceId}:${input.userId}:${input.anonSessionId}`;
+  return {
+    lock: `feedback:vote-sync:lock:${base}`,
+    done: `feedback:vote-sync:done:${base}`,
+  };
+}
 
 export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
   "FeedbackRepository",
@@ -824,6 +869,269 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
             };
           }),
       );
+      const listComments = Effect.fn("FeedbackRepository.listComments")(
+        ({
+          workspaceId,
+          postId,
+        }: ListFeedbackCommentsParams): Effect.Effect<
+          FeedbackCommentItem[],
+          FeedbackPostNotFound | FeedbackPersistenceError
+        > =>
+          Effect.gen(function* () {
+            const existingCount = yield* getPostCount(workspaceId, postId);
+
+            if (existingCount === null) {
+              return yield* new FeedbackPostNotFound({ postId });
+            }
+
+            const comments = yield* fromPersistencePromise(
+              "feedback.listComments",
+              () =>
+                db
+                  .select({
+                    id: feedbackComment.id,
+                    postId: feedbackComment.postId,
+                    body: feedbackComment.body,
+                    createdAt: feedbackComment.createdAt,
+                    updatedAt: feedbackComment.updatedAt,
+                    authorUserId: feedbackComment.authorUserId,
+                    authorName: user.name,
+                    authorImage: user.image,
+                  })
+                  .from(feedbackComment)
+                  .leftJoin(user, eq(feedbackComment.authorUserId, user.id))
+                  .where(
+                    and(
+                      eq(feedbackComment.workspaceId, workspaceId),
+                      eq(feedbackComment.postId, postId),
+                      eq(feedbackComment.isInternal, false),
+                    ),
+                  )
+                  .orderBy(asc(feedbackComment.createdAt)),
+            );
+
+            return comments satisfies FeedbackCommentItem[];
+          }),
+      );
+      const createComment = Effect.fn("FeedbackRepository.createComment")(
+        ({
+          workspaceId,
+          postId,
+          authorUserId,
+          input,
+        }: CreateFeedbackCommentParams): Effect.Effect<
+          FeedbackCommentItem,
+          FeedbackPostNotFound | FeedbackPersistenceError
+        > =>
+          Effect.gen(function* () {
+            const existingCount = yield* getPostCount(workspaceId, postId);
+
+            if (existingCount === null) {
+              return yield* new FeedbackPostNotFound({ postId });
+            }
+
+            const inserted = yield* fromPersistencePromise(
+              "feedback.createComment.insert",
+              async () => {
+                const [result] = await db
+                  .insert(feedbackComment)
+                  .values({
+                    id: crypto.randomUUID(),
+                    workspaceId,
+                    postId,
+                    authorUserId,
+                    anonSessionId: null,
+                    body: input.body,
+                    isInternal: false,
+                  })
+                  .returning({ id: feedbackComment.id });
+
+                return result ?? null;
+              },
+            );
+
+            if (!inserted) {
+              return yield* toPersistenceError(
+                "feedback.createComment.inserted",
+              );
+            }
+
+            yield* fromPersistencePromise(
+              "feedback.createComment.bumpPostCount",
+              () =>
+                db
+                  .update(feedbackPost)
+                  .set({
+                    commentCount: sql`${feedbackPost.commentCount} + 1`,
+                  })
+                  .where(
+                    and(
+                      eq(feedbackPost.workspaceId, workspaceId),
+                      eq(feedbackPost.id, postId),
+                    ),
+                  ),
+            );
+
+            const [comment] = yield* fromPersistencePromise(
+              "feedback.createComment.select",
+              () =>
+                db
+                  .select({
+                    id: feedbackComment.id,
+                    postId: feedbackComment.postId,
+                    body: feedbackComment.body,
+                    createdAt: feedbackComment.createdAt,
+                    updatedAt: feedbackComment.updatedAt,
+                    authorUserId: feedbackComment.authorUserId,
+                    authorName: user.name,
+                    authorImage: user.image,
+                  })
+                  .from(feedbackComment)
+                  .leftJoin(user, eq(feedbackComment.authorUserId, user.id))
+                  .where(eq(feedbackComment.id, inserted.id))
+                  .limit(1),
+            );
+
+            if (!comment) {
+              return yield* toPersistenceError(
+                "feedback.createComment.missing",
+              );
+            }
+
+            return comment satisfies FeedbackCommentItem;
+          }),
+      );
+      const claimAnonymousVotes = Effect.fn(
+        "FeedbackRepository.claimAnonymousVotes",
+      )(
+        ({
+          workspaceId,
+          userId,
+          anonSessionId,
+        }: ClaimAnonymousVotesParams): Effect.Effect<
+          FeedbackVoteSyncResult,
+          FeedbackPersistenceError
+        > =>
+          fromPersistencePromise("feedback.claimAnonymousVotes", async () => {
+            const redis = getVoteSyncRedis();
+            const keys = buildVoteSyncKeys({
+              workspaceId,
+              userId,
+              anonSessionId,
+            });
+            let lockAcquired = false;
+
+            if (redis) {
+              const done = await redis.get(keys.done);
+              if (done) {
+                return { claimedCount: 0 };
+              }
+
+              const lock = await redis.set(keys.lock, "1", {
+                nx: true,
+                ex: VOTE_SYNC_LOCK_TTL_SECONDS,
+              });
+
+              if (lock !== "OK") {
+                return { claimedCount: 0 };
+              }
+
+              lockAcquired = true;
+            }
+
+            try {
+              const claimedCount = await db.transaction(async (tx) => {
+                const anonVotes = await tx
+                  .select({ postId: feedbackVote.postId })
+                  .from(feedbackVote)
+                  .where(
+                    and(
+                      eq(feedbackVote.workspaceId, workspaceId),
+                      eq(feedbackVote.anonSessionId, anonSessionId),
+                    ),
+                  );
+
+                const postIds = [
+                  ...new Set(anonVotes.map((vote) => vote.postId)),
+                ];
+
+                if (!postIds.length) {
+                  return 0;
+                }
+
+                const inserted = await tx
+                  .insert(feedbackVote)
+                  .values(
+                    postIds.map((postId) => ({
+                      id: crypto.randomUUID(),
+                      workspaceId,
+                      postId,
+                      userId,
+                      anonSessionId: null,
+                    })),
+                  )
+                  .onConflictDoNothing()
+                  .returning({ id: feedbackVote.id });
+
+                await tx
+                  .delete(feedbackVote)
+                  .where(
+                    and(
+                      eq(feedbackVote.workspaceId, workspaceId),
+                      eq(feedbackVote.anonSessionId, anonSessionId),
+                      inArray(feedbackVote.postId, postIds),
+                    ),
+                  );
+
+                const counts = await tx
+                  .select({
+                    postId: feedbackVote.postId,
+                    count: sql<number>`count(*)::int`,
+                  })
+                  .from(feedbackVote)
+                  .where(
+                    and(
+                      eq(feedbackVote.workspaceId, workspaceId),
+                      inArray(feedbackVote.postId, postIds),
+                    ),
+                  )
+                  .groupBy(feedbackVote.postId);
+
+                const countByPostId = new Map(
+                  counts.map((entry) => [entry.postId, entry.count]),
+                );
+
+                await Promise.all(
+                  postIds.map((postId) =>
+                    tx
+                      .update(feedbackPost)
+                      .set({ upvoteCount: countByPostId.get(postId) ?? 0 })
+                      .where(
+                        and(
+                          eq(feedbackPost.workspaceId, workspaceId),
+                          eq(feedbackPost.id, postId),
+                        ),
+                      ),
+                  ),
+                );
+
+                return inserted.length;
+              });
+
+              if (redis) {
+                await redis.set(keys.done, "1", {
+                  ex: VOTE_SYNC_DONE_TTL_SECONDS,
+                });
+              }
+
+              return { claimedCount };
+            } finally {
+              if (redis && lockAcquired) {
+                await redis.del(keys.lock);
+              }
+            }
+          }),
+      );
 
       return {
         getWorkspaceAccess,
@@ -834,6 +1142,9 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
         seedWorkspaceDefaults,
         voteForPost,
         unvoteForPost,
+        listComments,
+        createComment,
+        claimAnonymousVotes,
       };
     }),
   },

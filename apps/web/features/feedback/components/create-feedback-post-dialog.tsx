@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useState } from "react";
 
 import { FancyButton } from "@/components/ui/fancy-button";
+import { IconPlusCircle } from "@/components/icons/icon-plus-circle";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +32,7 @@ interface CreateFeedbackPostDialogProps {
   workspaceSlug: string;
   defaultBoard: Pick<FeedbackBoardItem, "id" | "name">;
   defaultStatus: Pick<FeedbackStatusItem, "id" | "key" | "label">;
+  onUnauthorized?: () => void;
 }
 
 interface CreatePostResponse {
@@ -65,6 +67,7 @@ export function CreateFeedbackPostDialog({
   workspaceSlug,
   defaultBoard,
   defaultStatus,
+  onUnauthorized,
 }: CreateFeedbackPostDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -82,15 +85,23 @@ export function CreateFeedbackPostDialog({
   >({
     mutationKey: ["posts", workspaceSlug, "create"],
     mutationFn: async (input) => {
-      const response = await fetch("/api/feedback/posts", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
+      const response = await fetch(
+        `/api/workspaces/${workspaceSlug}/feedback/posts`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(input),
         },
-        body: JSON.stringify(input),
-      });
+      );
 
       if (!response.ok) {
+        if (response.status === 401) {
+          onUnauthorized?.();
+          throw new Error("Please sign in to create a post");
+        }
+
         const payload = (await response.json().catch(() => null)) as {
           error?: string;
         } | null;
@@ -186,11 +197,12 @@ export function CreateFeedbackPostDialog({
     <>
       <FancyButton.Root
         variant="neutral"
-        size="medium"
+        size="xsmall"
         type="button"
         onClick={() => setIsOpen(true)}
       >
-        Create new post
+        <IconPlusCircle className="size-4" />
+        Create post
       </FancyButton.Root>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>

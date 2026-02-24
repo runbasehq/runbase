@@ -35,7 +35,7 @@ export function useLikes({ workspaceSlug, postId }: UseLikesOptions) {
   >({
     mutationKey: ["likes", workspaceSlug, postId],
     mutationFn: async ({ viewerHasVoted }) =>
-      togglePostLike(postId, viewerHasVoted),
+      togglePostLike(workspaceSlug, postId, viewerHasVoted),
     onMutate: async ({ viewerHasVoted }) => {
       await Promise.all([
         queryClient.cancelQueries({ queryKey: postsKey }),
