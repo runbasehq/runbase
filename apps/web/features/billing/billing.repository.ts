@@ -38,6 +38,8 @@ export interface WorkspaceSubscriptionRecord {
   currentPeriodEnd: Date | null;
 }
 
+export type PolarTrialInterval = "day" | "week" | "month" | "year";
+
 export interface VerifiedPolarWebhookEvent {
   id: string;
   type: string;
@@ -56,6 +58,14 @@ export interface ParsedSubscriptionEvent {
   periodEnd: Date | null;
   canceledAt: Date | null;
   rawPayload: string;
+}
+
+export interface PolarCheckoutSessionResult {
+  checkoutUrl: string;
+  isPaymentFormRequired: boolean | null;
+  isPaymentRequired: boolean | null;
+  isPaymentSetupRequired: boolean | null;
+  trialEnd: string | null;
 }
 
 const toPersistenceError = (operation: string) =>
@@ -81,6 +91,18 @@ function readString(value: unknown): string | null {
 
 function readBoolean(value: unknown): boolean {
   return value === true;
+}
+
+function readOptionalBoolean(value: unknown): boolean | null {
+  if (value === true) {
+    return true;
+  }
+
+  if (value === false) {
+    return false;
+  }
+
+  return null;
 }
 
 function readDate(value: unknown): Date | null {
@@ -679,6 +701,10 @@ export class BillingRepository extends Effect.Service<BillingRepository>()(
           successUrl,
           returnUrl,
           metadata,
+          trialInterval,
+          trialIntervalCount,
+          allowTrial,
+          discountId,
         }: {
           productId: string;
           customerEmail: string | null;
@@ -687,8 +713,12 @@ export class BillingRepository extends Effect.Service<BillingRepository>()(
           successUrl: string;
           returnUrl: string;
           metadata: Record<string, string>;
+          trialInterval: PolarTrialInterval | null;
+          trialIntervalCount: number | null;
+          allowTrial: boolean | null;
+          discountId: string | null;
         }): Effect.Effect<
-          string,
+          PolarCheckoutSessionResult,
           BillingProviderError | BillingProviderNotConfigured
         > =>
           Effect.tryPromise({
@@ -709,10 +739,29 @@ export class BillingRepository extends Effect.Service<BillingRepository>()(
                 payload.customer_name = customerName;
               }
 
-              const data = await callPolarApi<{ url?: unknown }>(
-                "/v1/checkouts/",
-                payload,
-              );
+              if (typeof allowTrial === "boolean") {
+                payload.allow_trial = allowTrial;
+              }
+
+              if (trialInterval) {
+                payload.trial_interval = trialInterval;
+              }
+
+              if (typeof trialIntervalCount === "number") {
+                payload.trial_interval_count = trialIntervalCount;
+              }
+
+              if (discountId) {
+                payload.discount_id = discountId;
+              }
+
+              const data = await callPolarApi<{
+                url?: unknown;
+                is_payment_form_required?: unknown;
+                is_payment_required?: unknown;
+                is_payment_setup_required?: unknown;
+                trial_end?: unknown;
+              }>("/v1/checkouts/", payload);
               const url = readString(data.url);
 
               if (!url) {
@@ -723,7 +772,21 @@ export class BillingRepository extends Effect.Service<BillingRepository>()(
                 });
               }
 
-              return url;
+              const trialEnd = readString(data.trial_end);
+
+              return {
+                checkoutUrl: url,
+                isPaymentFormRequired: readOptionalBoolean(
+                  data.is_payment_form_required,
+                ),
+                isPaymentRequired: readOptionalBoolean(
+                  data.is_payment_required,
+                ),
+                isPaymentSetupRequired: readOptionalBoolean(
+                  data.is_payment_setup_required,
+                ),
+                trialEnd,
+              };
             },
             catch: (error) => {
               if (

@@ -10,6 +10,7 @@ import { createPageMetadata } from "@/lib/seo";
 import { protocol, rootDomain } from "@/lib/utils";
 import { getFirstWorkspaceMembershipForUser } from "@/lib/workspaces";
 import { SignIn } from "~/auth/components/sign-in";
+import { CreateWorkspaceSignUpForm } from "~/workspace/components/create-workspace-sign-up-form";
 import { normalizeCompanyName } from "~/workspace/schemas/create-workspace";
 
 export const metadata: Metadata = createPageMetadata({
@@ -23,6 +24,7 @@ export const metadata: Metadata = createPageMetadata({
 export const dynamic = "force-dynamic";
 
 type SignUpSearchParams = {
+  allowExistingMembership?: string | string[];
   companyName?: string | string[];
 };
 
@@ -43,12 +45,20 @@ export default async function SignUpPage({
   const companyName = normalizeCompanyName(
     readSingleParam(resolvedSearchParams.companyName),
   );
+  const allowExistingMembershipRaw = readSingleParam(
+    resolvedSearchParams.allowExistingMembership,
+  );
+  const allowExistingMembership =
+    allowExistingMembershipRaw === "1" ||
+    allowExistingMembershipRaw.toLowerCase() === "true";
 
   const session = await auth.api.getSession({
     headers: await headers(),
   });
+  const showCreateWorkspaceForExistingUser =
+    Boolean(session?.user) && allowExistingMembership;
 
-  if (session?.user) {
+  if (session?.user && !showCreateWorkspaceForExistingUser) {
     const existingMembership = await getFirstWorkspaceMembershipForUser(
       session.user.id,
     );
@@ -122,11 +132,15 @@ export default async function SignUpPage({
           </div>
 
           <div className="w-full max-w-[430px]">
-            <SignIn
-              githubAuthEnabled={githubAuthEnabled}
-              googleAuthEnabled={googleAuthEnabled}
-              mode="sign-up"
-            />
+            {showCreateWorkspaceForExistingUser ? (
+              <CreateWorkspaceSignUpForm initialCompanyName={companyName} />
+            ) : (
+              <SignIn
+                githubAuthEnabled={githubAuthEnabled}
+                googleAuthEnabled={googleAuthEnabled}
+                mode="sign-up"
+              />
+            )}
           </div>
         </section>
       </div>

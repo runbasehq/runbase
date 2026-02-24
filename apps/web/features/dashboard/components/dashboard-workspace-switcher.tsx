@@ -284,7 +284,7 @@ export function DashboardWorkspaceSwitcher({
                 onClick={() => {
                   onNavigate?.();
                   window.location.assign(
-                    `${protocol}://${rootDomain}/onboarding?allowExistingMembership=1`,
+                    `${protocol}://${rootDomain}/sign-up?allowExistingMembership=1`,
                   );
                 }}
               >

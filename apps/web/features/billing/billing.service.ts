@@ -23,6 +23,8 @@ import {
 } from "./billing.errors";
 import { BillingRepository } from "./billing.repository";
 
+type PolarTrialInterval = "day" | "week" | "month" | "year";
+
 function getAppUrl() {
   const appUrl = process.env.APP_URL?.trim();
 
@@ -31,6 +33,78 @@ function getAppUrl() {
   }
 
   return appUrl;
+}
+
+function decodePolarTrialInterval(
+  value: string | undefined,
+): PolarTrialInterval {
+  const normalized = (value ?? "").trim().toLowerCase();
+
+  if (
+    normalized === "day" ||
+    normalized === "week" ||
+    normalized === "month" ||
+    normalized === "year"
+  ) {
+    return normalized;
+  }
+
+  return "month";
+}
+
+function decodePositiveInt(
+  value: string | undefined,
+  fallback: number,
+): number {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
+function decodeBoolean(value: string | undefined, fallback: boolean): boolean {
+  const normalized = (value ?? "").trim().toLowerCase();
+
+  if (normalized === "true" || normalized === "1" || normalized === "yes") {
+    return true;
+  }
+
+  if (normalized === "false" || normalized === "0" || normalized === "no") {
+    return false;
+  }
+
+  return fallback;
+}
+
+function getCheckoutTrialConfig() {
+  const trialEnabled = decodeBoolean(process.env.POLAR_TRIAL_ENABLED, true);
+
+  if (!trialEnabled) {
+    return {
+      allowTrial: null,
+      trialInterval: null,
+      trialIntervalCount: null,
+      discountId: process.env.POLAR_TRIAL_DISCOUNT_ID?.trim() || null,
+    } as const;
+  }
+
+  const trialInterval = decodePolarTrialInterval(
+    process.env.POLAR_TRIAL_INTERVAL,
+  );
+  const trialIntervalCount = decodePositiveInt(
+    process.env.POLAR_TRIAL_INTERVAL_COUNT,
+    1,
+  );
+
+  return {
+    allowTrial: true,
+    trialInterval,
+    trialIntervalCount,
+    discountId: process.env.POLAR_TRIAL_DISCOUNT_ID?.trim() || null,
+  } as const;
 }
 
 function normalizeSubscriptionStatus(value: string) {
@@ -228,9 +302,10 @@ export class BillingService extends Effect.Service<BillingService>()(
                 planKey,
                 billingCycle,
               },
+              ...getCheckoutTrialConfig(),
             });
 
-            return { checkoutUrl };
+            return checkoutUrl;
           }),
       );
 

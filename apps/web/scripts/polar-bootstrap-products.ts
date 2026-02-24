@@ -13,6 +13,8 @@ type ProductSpec = {
   priceAmountCents: number;
 };
 
+type PolarTrialInterval = "day" | "week" | "month" | "year";
+
 const specs: ProductSpec[] = [
   {
     envVar: "POLAR_PRODUCT_ID_GROWTH_MONTHLY",
@@ -60,6 +62,49 @@ function getPolarBaseUrl() {
   }
 
   return "https://sandbox-api.polar.sh";
+}
+
+function decodeTrialInterval(
+  value: string | undefined,
+): PolarTrialInterval | null {
+  const normalized = (value ?? "").trim().toLowerCase();
+
+  if (
+    normalized === "day" ||
+    normalized === "week" ||
+    normalized === "month" ||
+    normalized === "year"
+  ) {
+    return normalized;
+  }
+
+  return null;
+}
+
+function decodePositiveInt(value: string | undefined): number | null {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function getTrialConfig() {
+  const interval = decodeTrialInterval(process.env.POLAR_TRIAL_INTERVAL);
+  const intervalCount = decodePositiveInt(
+    process.env.POLAR_TRIAL_INTERVAL_COUNT,
+  );
+
+  if (!interval || !intervalCount) {
+    return null;
+  }
+
+  return {
+    interval,
+    intervalCount,
+  };
 }
 
 function getAuthHeaders() {
@@ -117,6 +162,7 @@ async function listProducts() {
 
 async function createProduct(spec: ProductSpec): Promise<PolarProduct> {
   const organizationId = process.env.POLAR_ORGANIZATION_ID?.trim() || null;
+  const trialConfig = getTrialConfig();
   const body: Record<string, unknown> = {
     name: spec.name,
     description: spec.description,
@@ -137,6 +183,11 @@ async function createProduct(spec: ProductSpec): Promise<PolarProduct> {
 
   if (organizationId) {
     body.organization_id = organizationId;
+  }
+
+  if (trialConfig) {
+    body.trial_interval = trialConfig.interval;
+    body.trial_interval_count = trialConfig.intervalCount;
   }
 
   return polarRequest<PolarProduct>("/v1/products/", {

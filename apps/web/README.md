@@ -23,6 +23,10 @@ Copy `apps/web/.env.example` and set:
 - `POLAR_PRODUCT_ID_PROFESSIONAL_YEARLY`
 - `POLAR_PRODUCT_ID_ENTERPRISE` (optional)
 - `POLAR_WEBHOOK_URL` (required by `polar:setup-webhook` script)
+- `POLAR_TRIAL_ENABLED` (optional, defaults to `true`)
+- `POLAR_TRIAL_INTERVAL` (optional: `day`, `week`, `month`, `year`; defaults to `month`)
+- `POLAR_TRIAL_INTERVAL_COUNT` (optional integer, defaults to `1`)
+- `POLAR_TRIAL_DISCOUNT_ID` (optional; useful when checkout should not require payment setup during trial)
 
 ## Run locally
 
@@ -41,6 +45,8 @@ Tenant app example: `http://acme.localhost:3000`
 - Verified custom domains rewrite to `/s/[tenant]` using Redis domain mappings.
 - Subdomain `/admin` redirects to `/`.
 - Root `/admin` lists tenants and supports delete.
+- Hosted billing checkout can start Polar trials via checkout session config.
+- There is no global access gate by subscription status; restrictions are currently seat-capacity checks in team growth flows.
 
 Redis key format: `subdomain:{tenant}`.
 Custom domain key format: `domain:{hostname}`.

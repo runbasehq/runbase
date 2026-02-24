@@ -32,22 +32,36 @@ export async function createWorkspaceAction(
   const allowExistingMembership =
     allowExistingMembershipRaw === "1" ||
     allowExistingMembershipRaw.toLowerCase() === "true";
+  const redirectToPaywallRaw =
+    (formData.get("redirectToPaywall") as string | null) ?? "0";
+  const redirectToPaywall =
+    redirectToPaywallRaw === "1" ||
+    redirectToPaywallRaw.toLowerCase() === "true";
 
   const session = await auth.api.getSession({
     headers: await headers(),
   });
 
   if (!session?.user) {
-    const nextParams = new URLSearchParams();
-    if (normalizedCompanyName) {
-      nextParams.set("companyName", normalizedCompanyName);
-    }
+    let nextPath = "/onboarding";
+
     if (allowExistingMembership) {
-      nextParams.set("allowExistingMembership", "1");
+      const signUpParams = new URLSearchParams();
+      signUpParams.set("allowExistingMembership", "1");
+      if (normalizedCompanyName) {
+        signUpParams.set("companyName", normalizedCompanyName);
+      }
+      nextPath = `/sign-up?${signUpParams.toString()}`;
+    } else {
+      const nextParams = new URLSearchParams();
+      if (normalizedCompanyName) {
+        nextParams.set("companyName", normalizedCompanyName);
+      }
+      nextPath = nextParams.size
+        ? `/onboarding?${nextParams.toString()}`
+        : "/onboarding";
     }
-    const nextPath = nextParams.size
-      ? `/onboarding?${nextParams.toString()}`
-      : "/onboarding";
+
     const signInSearchParams = new URLSearchParams({ next: nextPath });
 
     if (normalizedCompanyName) {
@@ -90,6 +104,18 @@ export async function createWorkspaceAction(
       companyName,
       suggestedUrl: result.suggestedUrl,
     };
+  }
+
+  if (redirectToPaywall) {
+    const completeParams = new URLSearchParams({
+      workspaceSlug: result.slug,
+    });
+
+    if (allowExistingMembership) {
+      completeParams.set("allowExistingMembership", "1");
+    }
+
+    redirect(`/onboarding/complete?${completeParams.toString()}`);
   }
 
   redirect(`${protocol}://${result.slug}.${rootDomain}/dashboard`);
