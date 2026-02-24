@@ -43,9 +43,23 @@ export function FeedbackAuthModal({
   useEffect(() => {
     const authRootOrigin = getAuthRootOrigin();
     const trustedOrigins = new Set([window.location.origin, authRootOrigin]);
+    const isDev = process.env.NODE_ENV !== "production";
+
+    function logRejected(reason: string, event: MessageEvent) {
+      if (!isDev) {
+        return;
+      }
+
+      console.debug("[auth-popup] Ignored auth completion", {
+        reason,
+        origin: event.origin,
+        data: event.data,
+      });
+    }
 
     function handleAuthComplete(event: MessageEvent) {
       if (!trustedOrigins.has(event.origin)) {
+        logRejected("untrusted-origin", event);
         return;
       }
 
@@ -54,11 +68,19 @@ export function FeedbackAuthModal({
         refreshOnly?: boolean;
         authState?: string;
       } | null;
-      if (
-        payload?.type !== "runbase-auth-complete" ||
-        payload.refreshOnly !== true ||
-        !consumePendingPopupAuthState(payload.authState)
-      ) {
+
+      if (payload?.type !== "runbase-auth-complete") {
+        logRejected("invalid-type", event);
+        return;
+      }
+
+      if (payload.refreshOnly !== true) {
+        logRejected("refresh-flag-missing", event);
+        return;
+      }
+
+      if (!consumePendingPopupAuthState(payload.authState)) {
+        logRejected("auth-state-mismatch", event);
         return;
       }
 
