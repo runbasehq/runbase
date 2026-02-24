@@ -99,6 +99,20 @@ function getResend() {
   return new Resend(apiKey);
 }
 
+function formatInviterName(inviterName: string) {
+  const trimmed = inviterName.trim();
+
+  if (!trimmed) {
+    return "Someone";
+  }
+
+  if (/[A-Z]/.test(trimmed)) {
+    return trimmed;
+  }
+
+  return trimmed.replace(/\b[a-z]/g, (char) => char.toUpperCase());
+}
+
 function toInvitationView(row: {
   id: string;
   email: string;
@@ -1138,6 +1152,7 @@ export class WorkspaceMembersRepository extends Effect.Service<WorkspaceMembersR
             try: async () => {
               const resend = getResend();
               const from = process.env.RESEND_FROM_EMAIL;
+              const inviterDisplayName = formatInviterName(inviterName);
 
               if (!resend || !from) {
                 throw new Error(
@@ -1147,18 +1162,18 @@ export class WorkspaceMembersRepository extends Effect.Service<WorkspaceMembersR
 
               const reactBody = WorkspaceInviteEmail({
                 acceptUrl,
-                inviterName,
+                inviterName: inviterDisplayName,
                 role,
                 workspaceName,
               });
               const html = await render(reactBody);
-              const text = `${inviterName} invited you to join ${workspaceName} as ${role}. Accept invitation: ${acceptUrl}`;
+              const text = `${inviterDisplayName} invited you to join ${workspaceName} as ${role}. Accept invitation: ${acceptUrl}`;
 
               const { data, error } = await resend.emails.send(
                 {
                   from,
                   to: [email],
-                  subject: `${inviterName} invited you to ${workspaceName}`,
+                  subject: `${inviterDisplayName} invited you to ${workspaceName}`,
                   html,
                   text,
                 },
