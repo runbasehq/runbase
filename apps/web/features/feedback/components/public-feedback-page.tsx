@@ -5,10 +5,21 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { FancyButton } from "@/components/ui/fancy-button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { IconFilter } from "@/components/icons/icon-filter";
 import { IconPlusCircle } from "@/components/icons/icon-plus-circle";
 import { IconSearch } from "@/components/icons/icon-search";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { authClient } from "@/lib/auth-client";
 import type {
   FeedbackBoardItem,
   FeedbackPostItem,
@@ -27,6 +38,12 @@ interface PublicFeedbackPageProps {
   workspaceName: string;
   initialPosts: FeedbackPostItem[];
   isAuthenticated: boolean;
+  viewer: {
+    name: string | null;
+    email: string | null;
+    image: string | null;
+  } | null;
+  isWorkspaceOwner: boolean;
   githubAuthEnabled: boolean;
   defaultBoard: Pick<FeedbackBoardItem, "id" | "name"> | null;
   defaultStatus: Pick<FeedbackStatusItem, "id" | "key" | "label"> | null;
@@ -38,6 +55,8 @@ export function PublicFeedbackPage({
   workspaceName,
   initialPosts,
   isAuthenticated,
+  viewer,
+  isWorkspaceOwner,
   githubAuthEnabled,
   defaultBoard,
   defaultStatus,
@@ -48,6 +67,7 @@ export function PublicFeedbackPage({
   const [sortView, setSortView] = useState<"new" | "top" | "trending">("top");
   const [viewerIsAuthenticated, setViewerIsAuthenticated] =
     useState(isAuthenticated);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const postsQuery = usePosts({ workspaceSlug, initialPosts });
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -130,6 +150,14 @@ export function PublicFeedbackPage({
     return "/";
   }
 
+  function getDashboardPath() {
+    if (isScopedWorkspacePath) {
+      return `/s/${workspaceSlug}/dashboard`;
+    }
+
+    return "/dashboard";
+  }
+
   function openPost(postId: string) {
     const targetPath = getPostPath(postId);
     if (pathname !== targetPath) {
@@ -146,6 +174,36 @@ export function PublicFeedbackPage({
     if (pathname !== targetPath) {
       router.replace(targetPath, { scroll: false });
     }
+  }
+
+  async function handleSignOut() {
+    setIsSigningOut(true);
+    const { error } = await authClient.signOut();
+
+    if (error) {
+      setIsSigningOut(false);
+      return;
+    }
+
+    setViewerIsAuthenticated(false);
+    setIsSigningOut(false);
+    router.replace(getListPath(), { scroll: false });
+    router.refresh();
+  }
+
+  function getViewerInitials() {
+    const source = viewer?.name || viewer?.email || "User";
+    const parts = source.trim().split(/\s+/).filter(Boolean);
+
+    if (!parts.length) {
+      return "U";
+    }
+
+    if (parts.length === 1) {
+      return parts[0]?.slice(0, 1).toUpperCase() || "U";
+    }
+
+    return `${parts[0]?.slice(0, 1) || ""}${parts[1]?.slice(0, 1) || ""}`.toUpperCase();
   }
 
   function excerpt(value: string) {
@@ -187,6 +245,43 @@ export function PublicFeedbackPage({
                 >
                   Sign in / Sign up
                 </FancyButton.Root>
+              ) : viewer ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    className="inline-flex items-center justify-center rounded-full border border-(--border) bg-(--surface) p-0.5"
+                    aria-label="Account menu"
+                  >
+                    <Avatar size="sm">
+                      <AvatarImage
+                        src={viewer.image || undefined}
+                        alt={viewer.name || "User avatar"}
+                      />
+                      <AvatarFallback>{getViewerInitials()}</AvatarFallback>
+                    </Avatar>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel className="truncate">
+                        {viewer.name || viewer.email || "Account"}
+                      </DropdownMenuLabel>
+                      {isWorkspaceOwner ? (
+                        <DropdownMenuItem
+                          onClick={() => router.push(getDashboardPath())}
+                        >
+                          Dashboard
+                        </DropdownMenuItem>
+                      ) : null}
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={handleSignOut}
+                      disabled={isSigningOut}
+                      variant="destructive"
+                    >
+                      {isSigningOut ? "Signing out..." : "Log out"}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ) : null}
             </header>
 

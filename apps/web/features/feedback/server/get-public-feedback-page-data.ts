@@ -5,7 +5,10 @@ import { cookies, headers } from "next/headers";
 
 import { auth } from "@/lib/auth";
 import { appRuntime } from "@/lib/runtime";
-import { getWorkspaceBySlug } from "@/lib/workspaces";
+import {
+  getUserWorkspaceMembershipBySlug,
+  getWorkspaceBySlug,
+} from "@/lib/workspaces";
 import { FeedbackService } from "~/feedback/feedback.service";
 import {
   FEEDBACK_ANON_COOKIE,
@@ -25,6 +28,12 @@ export async function getPublicFeedbackPageData(subdomain: string) {
   const session = await auth.api.getSession({ headers: requestHeaders });
   const anonCookie = cookieStore.get(FEEDBACK_ANON_COOKIE)?.value ?? null;
   const anonSessionId = getAnonCookieForSync(anonCookie);
+  const membership = session?.user?.id
+    ? await getUserWorkspaceMembershipBySlug(
+        session.user.id,
+        foundWorkspace.slug,
+      )
+    : null;
 
   const snapshot = await appRuntime.runPromise(
     Effect.gen(function* () {
@@ -70,6 +79,17 @@ export async function getPublicFeedbackPageData(subdomain: string) {
     workspaceName: foundWorkspace.name,
     initialPosts: snapshot.posts,
     isAuthenticated: Boolean(session?.user),
+    viewer: session?.user
+      ? {
+          name:
+            typeof session.user.name === "string" ? session.user.name : null,
+          email:
+            typeof session.user.email === "string" ? session.user.email : null,
+          image:
+            typeof session.user.image === "string" ? session.user.image : null,
+        }
+      : null,
+    isWorkspaceOwner: membership?.role === "admin",
     githubAuthEnabled,
     defaultBoard,
     defaultStatus,

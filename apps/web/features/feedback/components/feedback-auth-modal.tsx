@@ -113,23 +113,27 @@ export function FeedbackAuthModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-(--r-md) border border-(--border) bg-(--surface)">
+      <DialogContent className="rounded-xl border border-slate-200 bg-slate-50 shadow-xl">
         <DialogHeader>
-          <DialogTitle className="text-xl font-semibold text-(--text)">
+          <DialogTitle className="text-xl font-semibold text-slate-900">
             {mode === "sign-up" ? "Sign up to publish" : "Sign in to publish"}
           </DialogTitle>
-          <DialogDescription className="text-sm text-(--muted)">
+          <DialogDescription className="text-sm text-slate-700">
             Publishing posts and comments requires a Runbase account.
           </DialogDescription>
         </DialogHeader>
 
-        <form className="space-y-3" onSubmit={handleSubmit}>
+        <form
+          className="space-y-3 rounded-xl border border-slate-200 bg-white p-4"
+          onSubmit={handleSubmit}
+        >
           {mode === "sign-up" ? (
             <Input
               type="text"
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="Name"
+              className="h-10 rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500"
               required
             />
           ) : null}
@@ -139,6 +143,7 @@ export function FeedbackAuthModal({
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="Email"
+            className="h-10 rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500"
             required
           />
           <Input
@@ -147,10 +152,15 @@ export function FeedbackAuthModal({
             onChange={(event) => setPassword(event.target.value)}
             placeholder="Password"
             minLength={8}
+            className="h-10 rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500"
             required
           />
 
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {error ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </p>
+          ) : null}
 
           <DialogFooter>
             <FancyButton.Root
@@ -181,7 +191,7 @@ export function FeedbackAuthModal({
 
         <button
           type="button"
-          className="text-center text-sm text-(--muted)"
+          className="text-center text-sm text-slate-700 underline-offset-2 hover:underline"
           onClick={() => {
             setError(null);
             setMode((current) =>

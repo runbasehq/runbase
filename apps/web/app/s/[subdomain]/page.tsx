@@ -83,6 +83,8 @@ export default async function WorkspacePublicPage({
       workspaceName={pageData.workspaceName}
       initialPosts={pageData.initialPosts}
       isAuthenticated={pageData.isAuthenticated}
+      viewer={pageData.viewer}
+      isWorkspaceOwner={pageData.isWorkspaceOwner}
       githubAuthEnabled={pageData.githubAuthEnabled}
       defaultBoard={pageData.defaultBoard}
       defaultStatus={pageData.defaultStatus}

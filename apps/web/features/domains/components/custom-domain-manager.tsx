@@ -2,6 +2,8 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 
+import { IconCheckmark } from "@/components/icons/icon-checkmark";
+import { IconCopy } from "@/components/icons/icon-copy";
 import {
   useAddDomainMutation,
   useDomains,
@@ -56,6 +58,8 @@ function RecordRow({
 }) {
   const nameKey = `${domainKey}:${record.type}:name`;
   const valueKey = `${domainKey}:${record.type}:value`;
+  const isNameCopied = copiedKey === nameKey;
+  const isValueCopied = copiedKey === valueKey;
 
   return (
     <div className="grid grid-cols-[72px_1fr_auto] items-center gap-3 rounded-(--r-sm) border border-(--border) bg-(--surface) px-3 py-2.5 text-xs text-(--text)">
@@ -68,16 +72,26 @@ function RecordRow({
         <button
           type="button"
           onClick={() => onCopy(nameKey, record.name)}
-          className="rounded-md border border-(--border) px-2 py-1 text-[11px] text-(--muted) hover:border-(--text)/30 hover:text-(--text)"
+          className="inline-flex items-center gap-1 rounded-md border border-(--border) px-2 py-1 text-[11px] text-(--muted) hover:border-(--text)/30 hover:text-(--text)"
         >
-          {copiedKey === nameKey ? "Copied" : "Copy name"}
+          {isNameCopied ? (
+            <IconCheckmark className="size-3" />
+          ) : (
+            <IconCopy className="size-3" />
+          )}
+          {isNameCopied ? "Copied" : "Copy name"}
         </button>
         <button
           type="button"
           onClick={() => onCopy(valueKey, record.value)}
-          className="rounded-md border border-(--border) px-2 py-1 text-[11px] text-(--muted) hover:border-(--text)/30 hover:text-(--text)"
+          className="inline-flex items-center gap-1 rounded-md border border-(--border) px-2 py-1 text-[11px] text-(--muted) hover:border-(--text)/30 hover:text-(--text)"
         >
-          {copiedKey === valueKey ? "Copied" : "Copy value"}
+          {isValueCopied ? (
+            <IconCheckmark className="size-3" />
+          ) : (
+            <IconCopy className="size-3" />
+          )}
+          {isValueCopied ? "Copied" : "Copy value"}
         </button>
       </div>
     </div>

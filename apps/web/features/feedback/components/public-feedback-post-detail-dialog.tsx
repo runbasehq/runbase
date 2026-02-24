@@ -2,6 +2,13 @@
 
 import { useMemo, useState } from "react";
 
+import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { IconCheckmark } from "@/components/icons/icon-checkmark";
+import { IconClaude } from "@/components/icons/icon-claude";
+import { IconCopy } from "@/components/icons/icon-copy";
+import { IconMarkdown } from "@/components/icons/icon-markdown";
+import { IconOpenAI } from "@/components/icons/icon-openai";
 import { FancyButton } from "@/components/ui/fancy-button";
 import {
   Dialog,
@@ -10,6 +17,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { FeedbackPostItem } from "~/feedback/lib/types";
 
 import { FeedbackComments } from "./feedback-comments";
@@ -35,6 +49,7 @@ export function PublicFeedbackPostDetailDialog({
   onRequireAuth,
 }: PublicFeedbackPostDetailDialogProps) {
   const [tab, setTab] = useState<DetailTab>("comments");
+  const [didCopyMarkdown, setDidCopyMarkdown] = useState(false);
 
   const createdLabel = useMemo(() => {
     if (!post) {
@@ -48,6 +63,75 @@ export function PublicFeedbackPostDetailDialog({
     });
   }, [post]);
 
+  const markdownValue = useMemo(() => {
+    if (!post) {
+      return "";
+    }
+
+    return [
+      `# ${post.title}`,
+      "",
+      post.content,
+      "",
+      `- Status: ${post.statusLabel}`,
+      `- Board: ${post.boardName}`,
+      `- Date: ${createdLabel}`,
+    ].join("\n");
+  }, [createdLabel, post]);
+
+  function getPageUrl() {
+    if (typeof window === "undefined") {
+      return "";
+    }
+
+    return window.location.href;
+  }
+
+  function openExternal(url: string) {
+    if (!url) {
+      return;
+    }
+
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  async function handleCopyPage() {
+    if (!navigator.clipboard || !markdownValue) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(markdownValue);
+    setDidCopyMarkdown(true);
+    window.setTimeout(() => setDidCopyMarkdown(false), 1500);
+  }
+
+  function handleViewAsMarkdown() {
+    if (!markdownValue) {
+      return;
+    }
+
+    const blob = new Blob([markdownValue], {
+      type: "text/markdown;charset=utf-8",
+    });
+    const objectUrl = URL.createObjectURL(blob);
+    openExternal(objectUrl);
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  }
+
+  function handleOpenInChatGPT() {
+    const prompt = encodeURIComponent(
+      `${markdownValue}\n\nSource: ${getPageUrl()}`,
+    );
+    openExternal(`https://chatgpt.com/?q=${prompt}`);
+  }
+
+  function handleOpenInClaude() {
+    const prompt = encodeURIComponent(
+      `${markdownValue}\n\nSource: ${getPageUrl()}`,
+    );
+    openExternal(`https://claude.ai/new?q=${prompt}`);
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -59,9 +143,51 @@ export function PublicFeedbackPostDetailDialog({
             <div className="grid min-h-[560px] md:grid-cols-[minmax(0,1fr)_280px]">
               <section className="border-b border-(--border) p-5 md:border-r md:border-b-0">
                 <DialogHeader className="space-y-2">
-                  <DialogTitle className="text-xl font-semibold text-(--text)">
-                    {post.title}
-                  </DialogTitle>
+                  <div className="flex items-center justify-between gap-3">
+                    <DialogTitle className="text-xl font-semibold text-(--text)">
+                      {post.title}
+                    </DialogTitle>
+                    <div className="inline-flex shrink-0 overflow-hidden rounded-lg border border-slate-700 bg-slate-900 text-white">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                        onClick={handleCopyPage}
+                      >
+                        {didCopyMarkdown ? (
+                          <IconCheckmark className="size-3.5" />
+                        ) : (
+                          <IconCopy className="size-3.5" />
+                        )}
+                        {didCopyMarkdown ? "Copied" : "Copy Page"}
+                      </button>
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="inline-flex items-center border-l border-slate-700 px-2 py-1.5 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+                          <HugeiconsIcon
+                            icon={ArrowDown01Icon}
+                            strokeWidth={2}
+                            className="size-3"
+                          />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
+                          <DropdownMenuGroup>
+                            <DropdownMenuItem onClick={handleViewAsMarkdown}>
+                              <IconMarkdown className="size-4" />
+                              View as Markdown
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleOpenInChatGPT}>
+                              <IconOpenAI className="size-4" />
+                              Open in ChatGPT
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleOpenInClaude}>
+                              <IconClaude className="size-4" />
+                              Open in Claude
+                            </DropdownMenuItem>
+                          </DropdownMenuGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
                   <DialogDescription className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-base leading-relaxed text-slate-800">
                     {post.content}
                   </DialogDescription>
