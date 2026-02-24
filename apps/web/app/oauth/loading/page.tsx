@@ -1,0 +1,51 @@
+import {
+  getSafeServerAuthRedirect,
+  getSafeServerOrigin,
+} from "~/auth/lib/safe-auth-redirect.server";
+
+import { OAuthLoadingClient } from "./oauth-loading-client";
+
+type OAuthLoadingSearchParams = {
+  returnTo?: string | string[];
+  next?: string | string[];
+  openerOrigin?: string | string[];
+  type?: string | string[];
+  oid?: string | string[];
+};
+
+function readSingleParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
+}
+
+export default async function OAuthLoadingPage({
+  searchParams,
+}: {
+  searchParams: Promise<OAuthLoadingSearchParams>;
+}) {
+  const resolvedSearchParams = await searchParams;
+
+  const rawReturnTo = readSingleParam(resolvedSearchParams.returnTo);
+  const rawNext = readSingleParam(resolvedSearchParams.next);
+  const rawOpenerOrigin = readSingleParam(resolvedSearchParams.openerOrigin);
+  const authType = readSingleParam(resolvedSearchParams.type);
+  const oid = readSingleParam(resolvedSearchParams.oid);
+
+  const safeReturnTo =
+    (await getSafeServerAuthRedirect(rawReturnTo)) ||
+    (await getSafeServerAuthRedirect(rawNext)) ||
+    "/";
+  const safeOpenerOrigin = await getSafeServerOrigin(rawOpenerOrigin);
+
+  return (
+    <OAuthLoadingClient
+      returnTo={safeReturnTo}
+      openerOrigin={safeOpenerOrigin}
+      authType={authType}
+      oid={oid}
+    />
+  );
+}

@@ -13,6 +13,7 @@ export async function proxy(request: NextRequest) {
     }
 
     if (
+      pathname.startsWith("/oauth") ||
       pathname.startsWith("/sign-in") ||
       pathname.startsWith("/sign-up") ||
       pathname.startsWith("/onboarding") ||
@@ -25,6 +26,13 @@ export async function proxy(request: NextRequest) {
         redirectUrl.port = rootDomain.split(":")[1] || redirectUrl.port;
       } else {
         redirectUrl.port = "";
+      }
+
+      if (
+        pathname.startsWith("/sign-in") &&
+        !redirectUrl.searchParams.has("next")
+      ) {
+        redirectUrl.searchParams.set("next", request.url);
       }
 
       return NextResponse.redirect(redirectUrl);

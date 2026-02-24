@@ -1,11 +1,15 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { RunbaseLogo } from "@/components/logos/runbase-logo";
 import { createPageMetadata } from "@/lib/seo";
 import { FancyButtonRoot } from "@/components/ui/fancy-button";
+import { auth } from "@/lib/auth";
+import { protocol, rootDomain } from "@/lib/utils";
+import { getFirstWorkspaceMembershipForUser } from "@/lib/workspaces";
 import { HeroCompanyCta } from "~/marketing/components/hero-company-cta";
 import { HeroMarquee } from "~/marketing/components/hero-marquee";
 import { HowItWorksSection } from "~/marketing/components/how-it-works-section";
@@ -53,7 +57,21 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Page() {
+export default async function Page() {
+  const session = await auth.api.getSession({ headers: await headers() });
+
+  let dashboardHref = "/sign-in";
+
+  if (session?.user) {
+    const membership = await getFirstWorkspaceMembershipForUser(
+      session.user.id,
+    );
+
+    dashboardHref = membership?.workspaceSlug
+      ? `${protocol}://${membership.workspaceSlug}.${rootDomain}/dashboard`
+      : "/sign-up?allowExistingMembership=1";
+  }
+
   return (
     <main className="relative isolate overflow-x-hidden text-black [font-family:var(--font-sans),sans-serif]">
       <section
@@ -122,15 +140,23 @@ export default function Page() {
               </nav>
 
               <div className="flex items-center gap-5 justify-self-end">
-                <Link
-                  href="/sign-in"
-                  className="hidden text-[14px] font-medium text-black/70 transition-colors hover:text-black md:inline-flex"
-                >
-                  Login
-                </Link>
-                <FancyButtonRoot asChild variant="neutral" size="small">
-                  <Link href="/sign-up">Sign up</Link>
-                </FancyButtonRoot>
+                {session?.user ? (
+                  <FancyButtonRoot asChild variant="neutral" size="small">
+                    <Link href={dashboardHref}>Dashboard</Link>
+                  </FancyButtonRoot>
+                ) : (
+                  <>
+                    <Link
+                      href="/sign-in"
+                      className="hidden text-[14px] font-medium text-black/70 transition-colors hover:text-black md:inline-flex"
+                    >
+                      Log in
+                    </Link>
+                    <FancyButtonRoot asChild variant="neutral" size="small">
+                      <Link href="/sign-up">Sign up</Link>
+                    </FancyButtonRoot>
+                  </>
+                )}
               </div>
             </div>
           </header>
