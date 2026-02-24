@@ -6,6 +6,7 @@ import {
 import { OAuthLoadingClient } from "./oauth-loading-client";
 
 type OAuthLoadingSearchParams = {
+  token?: string | string[];
   returnTo?: string | string[];
   next?: string | string[];
   openerOrigin?: string | string[];
@@ -32,7 +33,9 @@ export default async function OAuthLoadingPage({
   const rawReturnTo = readSingleParam(resolvedSearchParams.returnTo);
   const rawNext = readSingleParam(resolvedSearchParams.next);
   const rawOpenerOrigin = readSingleParam(resolvedSearchParams.openerOrigin);
-  const authState = readSingleParam(resolvedSearchParams.authState);
+  const authState =
+    readSingleParam(resolvedSearchParams.authState) ||
+    readSingleParam(resolvedSearchParams.token);
   const authType = readSingleParam(resolvedSearchParams.type);
   const oid = readSingleParam(resolvedSearchParams.oid);
 

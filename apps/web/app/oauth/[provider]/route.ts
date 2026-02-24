@@ -96,8 +96,25 @@ export async function GET(
         preferredWorkspaceOrigin || safeOpenerOrigin || authRootOrigin,
       ).toString();
 
+  const finalLoadingOrigin =
+    preferredWorkspaceOrigin || safeOpenerOrigin || authRootOrigin;
+  const finalLoadingUrl = new URL("/oauth/loading", finalLoadingOrigin);
+  if (authStateParam) {
+    finalLoadingUrl.searchParams.set("token", authStateParam);
+  }
+  if (safeOpenerOrigin) {
+    finalLoadingUrl.searchParams.set("openerOrigin", safeOpenerOrigin);
+  }
+  finalLoadingUrl.searchParams.set("returnTo", absoluteReturnTo);
+  if (typeParam) {
+    finalLoadingUrl.searchParams.set("type", typeParam);
+  }
+  if (oidParam) {
+    finalLoadingUrl.searchParams.set("oid", oidParam);
+  }
+
   const callbackUrl = new URL("/oauth/loading", authRootOrigin);
-  callbackUrl.searchParams.set("returnTo", absoluteReturnTo);
+  callbackUrl.searchParams.set("returnTo", finalLoadingUrl.toString());
   callbackUrl.searchParams.set("next", absoluteReturnTo);
   if (typeParam) {
     callbackUrl.searchParams.set("type", typeParam);
@@ -137,7 +154,8 @@ export async function GET(
       : null);
 
   if (!providerUrl) {
-    return NextResponse.redirect(new URL("/sign-in", request.url));
+    callbackUrl.searchParams.set("error", "provider_url_missing");
+    return NextResponse.redirect(callbackUrl);
   }
 
   const response = NextResponse.redirect(
