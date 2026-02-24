@@ -7,6 +7,7 @@ import { isAbsoluteUrl } from "~/auth/lib/url";
 interface OAuthLoadingClientProps {
   returnTo: string;
   openerOrigin: string | null;
+  authState: string | null;
   authType: string | null;
   oid: string | null;
 }
@@ -14,6 +15,7 @@ interface OAuthLoadingClientProps {
 export function OAuthLoadingClient({
   returnTo,
   openerOrigin,
+  authState,
   authType,
   oid,
 }: OAuthLoadingClientProps) {
@@ -24,6 +26,7 @@ export function OAuthLoadingClient({
           type: "runbase-auth-complete",
           refreshOnly: true,
           returnTo,
+          ...(authState ? { authState } : {}),
           ...(authType ? { authType } : {}),
           ...(oid ? { oid } : {}),
         },
@@ -54,7 +57,7 @@ export function OAuthLoadingClient({
     }
 
     window.location.replace(returnTo);
-  }, [authType, oid, openerOrigin, returnTo]);
+  }, [authState, authType, oid, openerOrigin, returnTo]);
 
   return <main className="min-h-screen bg-background" aria-hidden />;
 }

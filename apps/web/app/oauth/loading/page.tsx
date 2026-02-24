@@ -9,6 +9,7 @@ type OAuthLoadingSearchParams = {
   returnTo?: string | string[];
   next?: string | string[];
   openerOrigin?: string | string[];
+  authState?: string | string[];
   type?: string | string[];
   oid?: string | string[];
 };
@@ -31,6 +32,7 @@ export default async function OAuthLoadingPage({
   const rawReturnTo = readSingleParam(resolvedSearchParams.returnTo);
   const rawNext = readSingleParam(resolvedSearchParams.next);
   const rawOpenerOrigin = readSingleParam(resolvedSearchParams.openerOrigin);
+  const authState = readSingleParam(resolvedSearchParams.authState);
   const authType = readSingleParam(resolvedSearchParams.type);
   const oid = readSingleParam(resolvedSearchParams.oid);
 
@@ -44,6 +46,7 @@ export default async function OAuthLoadingPage({
     <OAuthLoadingClient
       returnTo={safeReturnTo}
       openerOrigin={safeOpenerOrigin}
+      authState={authState}
       authType={authType}
       oid={oid}
     />

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import { type AuthMode, validateSignInInput } from "~/auth/schemas/sign-in";
 import { getAuthRootOrigin } from "~/auth/lib/get-auth-root-origin";
+import { consumePendingPopupAuthState } from "~/auth/lib/popup-auth-state";
 import { getSafeAuthRedirect } from "~/auth/lib/safe-auth-redirect";
 import { startSocialPopupSignIn } from "~/auth/lib/start-social-popup-sign-in";
 import { isAbsoluteUrl } from "~/auth/lib/url";
@@ -79,8 +80,16 @@ export function SignIn({
         return;
       }
 
-      const payload = event.data as { type?: string } | null;
-      if (payload?.type !== "runbase-auth-complete") {
+      const payload = event.data as {
+        type?: string;
+        refreshOnly?: boolean;
+        authState?: string;
+      } | null;
+      if (
+        payload?.type !== "runbase-auth-complete" ||
+        payload.refreshOnly !== true ||
+        !consumePendingPopupAuthState(payload.authState)
+      ) {
         return;
       }
 
