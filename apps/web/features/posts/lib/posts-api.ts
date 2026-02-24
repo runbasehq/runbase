@@ -13,13 +13,18 @@ function normalizePost(
   };
 }
 
-export async function fetchFeedbackPosts(): Promise<FeedbackPostItem[]> {
-  const response = await fetch("/api/feedback/posts", {
-    method: "GET",
-    headers: {
-      "content-type": "application/json",
+export async function fetchFeedbackPostsForWorkspace(
+  workspaceSlug: string,
+): Promise<FeedbackPostItem[]> {
+  const response = await fetch(
+    `/api/workspaces/${workspaceSlug}/feedback/posts`,
+    {
+      method: "GET",
+      headers: {
+        "content-type": "application/json",
+      },
     },
-  });
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to fetch posts (${response.status})`);

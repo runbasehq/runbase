@@ -3,9 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { appRuntime } from "@/lib/runtime";
-import { getWorkspaceBySlug } from "@/lib/workspaces";
+import { resolveWorkspaceFromHeaders } from "~/domains/lib/workspace-resolver";
 import { handleFeedbackError } from "~/feedback/feedback.errors";
-import { decodeCreateFeedbackPostInput } from "~/feedback/feedback.schema";
+import { decodeCreateFeedbackCommentInput } from "~/feedback/feedback.schema";
 import { FeedbackService } from "~/feedback/feedback.service";
 import {
   FEEDBACK_ANON_COOKIE,
@@ -15,35 +15,21 @@ import {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ workspaceSlug: string }> },
+  { params }: { params: Promise<{ postId: string }> },
 ) {
-  const { workspaceSlug } = await params;
-  const workspace = await getWorkspaceBySlug(workspaceSlug);
+  const { postId } = await params;
+  const workspace = await resolveWorkspaceFromHeaders(request.headers);
 
   if (!workspace) {
     return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
   }
 
-  const session = await auth.api.getSession({ headers: request.headers });
-  const anonCookie = request.cookies.get(FEEDBACK_ANON_COOKIE)?.value ?? null;
-
-  const validAnonSessionId = getAnonCookieForSync(anonCookie);
-
-  const program = Effect.gen(function* () {
-    yield* syncAnonymousVotesOnAuthenticatedRequest({
-      workspaceId: workspace.id,
-      userId: session?.user?.id,
-      anonSessionId: validAnonSessionId,
-    });
-
-    return yield* FeedbackService.getPublicSnapshot({
-      workspaceId: workspace.id,
-      userId: session?.user?.id ?? null,
-      anonSessionId: validAnonSessionId,
-    });
+  const program = FeedbackService.listPublicComments({
+    workspaceId: workspace.id,
+    postId,
   }).pipe(
     Effect.match({
-      onSuccess: (snapshot) => NextResponse.json({ posts: snapshot.posts }),
+      onSuccess: (comments) => NextResponse.json({ comments }),
       onFailure: handleFeedbackError,
     }),
   );
@@ -53,10 +39,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ workspaceSlug: string }> },
+  { params }: { params: Promise<{ postId: string }> },
 ) {
-  const { workspaceSlug } = await params;
-  const workspace = await getWorkspaceBySlug(workspaceSlug);
+  const { postId } = await params;
+  const workspace = await resolveWorkspaceFromHeaders(request.headers);
 
   if (!workspace) {
     return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
@@ -68,7 +54,7 @@ export async function POST(
 
   if (!session?.user) {
     return NextResponse.json(
-      { error: "You must be signed in to create a post" },
+      { error: "You must be signed in to comment" },
       { status: 401 },
     );
   }
@@ -90,15 +76,16 @@ export async function POST(
       anonSessionId: validAnonSessionId,
     });
 
-    const input = yield* decodeCreateFeedbackPostInput(rawBody);
-    return yield* FeedbackService.createPost({
+    const input = yield* decodeCreateFeedbackCommentInput(rawBody);
+    return yield* FeedbackService.createComment({
       workspaceId: workspace.id,
+      postId,
       authorUserId: session.user.id,
       input,
     });
   }).pipe(
     Effect.match({
-      onSuccess: (post) => NextResponse.json({ post }, { status: 201 }),
+      onSuccess: (comment) => NextResponse.json({ comment }, { status: 201 }),
       onFailure: handleFeedbackError,
     }),
   );

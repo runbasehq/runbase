@@ -9,8 +9,9 @@ import { decodeCreateFeedbackPostInput } from "~/feedback/feedback.schema";
 import { FeedbackService } from "~/feedback/feedback.service";
 import {
   FEEDBACK_ANON_COOKIE,
-  isValidAnonSessionId,
-} from "~/feedback/lib/vote-session";
+  getAnonCookieForSync,
+  syncAnonymousVotesOnAuthenticatedRequest,
+} from "~/feedback/lib/vote-sync";
 
 export async function GET(request: NextRequest) {
   const workspace = await resolveWorkspaceFromHeaders(request.headers);
@@ -22,10 +23,20 @@ export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({ headers: request.headers });
   const anonCookie = request.cookies.get(FEEDBACK_ANON_COOKIE)?.value ?? null;
 
-  const program = FeedbackService.getSnapshot({
-    workspaceId: workspace.id,
-    userId: session?.user?.id ?? null,
-    anonSessionId: isValidAnonSessionId(anonCookie) ? anonCookie : null,
+  const validAnonSessionId = getAnonCookieForSync(anonCookie);
+
+  const program = Effect.gen(function* () {
+    yield* syncAnonymousVotesOnAuthenticatedRequest({
+      workspaceId: workspace.id,
+      userId: session?.user?.id,
+      anonSessionId: validAnonSessionId,
+    });
+
+    return yield* FeedbackService.getPublicSnapshot({
+      workspaceId: workspace.id,
+      userId: session?.user?.id ?? null,
+      anonSessionId: validAnonSessionId,
+    });
   }).pipe(
     Effect.match({
       onSuccess: (snapshot) => NextResponse.json({ posts: snapshot.posts }),
@@ -44,6 +55,8 @@ export async function POST(request: NextRequest) {
   }
 
   const session = await auth.api.getSession({ headers: request.headers });
+  const anonCookie = request.cookies.get(FEEDBACK_ANON_COOKIE)?.value ?? null;
+  const validAnonSessionId = getAnonCookieForSync(anonCookie);
 
   if (!session?.user) {
     return NextResponse.json(
@@ -63,6 +76,12 @@ export async function POST(request: NextRequest) {
   }
 
   const program = Effect.gen(function* () {
+    yield* syncAnonymousVotesOnAuthenticatedRequest({
+      workspaceId: workspace.id,
+      userId: session.user.id,
+      anonSessionId: validAnonSessionId,
+    });
+
     const input = yield* decodeCreateFeedbackPostInput(rawBody);
     return yield* FeedbackService.createPost({
       workspaceId: workspace.id,

@@ -2,20 +2,26 @@
 
 import { ArrowUp01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { motion } from "motion/react";
+import { cn } from "@/lib/utils";
 import { useLikes } from "~/likes/hooks/use-likes";
 
 interface UpvoteButtonProps {
   workspaceSlug: string;
   postId: string;
-  initialCount: number;
-  initialHasVoted: boolean;
+  count: number;
+  hasVoted: boolean;
+  variant?: "default" | "rail";
+  className?: string;
 }
 
 export function UpvoteButton({
   workspaceSlug,
   postId,
-  initialCount,
-  initialHasVoted,
+  count,
+  hasVoted,
+  variant = "default",
+  className,
 }: UpvoteButtonProps) {
   const { toggleLike, isPending } = useLikes({ workspaceSlug, postId });
 
@@ -24,26 +30,33 @@ export function UpvoteButton({
       return;
     }
 
-    toggleLike({ viewerHasVoted: initialHasVoted });
+    toggleLike({ viewerHasVoted: hasVoted });
   }
 
   return (
-    <button
+    <motion.button
       type="button"
       onClick={toggleVote}
       disabled={isPending}
-      className="inline-flex items-center gap-2 rounded-(--r-sm) border px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-70"
-      style={{
-        borderColor: initialHasVoted ? "var(--primary)" : "var(--border)",
-        color: initialHasVoted ? "var(--primary)" : "var(--muted)",
-        backgroundColor: initialHasVoted
-          ? "var(--primary-soft)"
-          : "var(--surface)",
-      }}
-      aria-label={initialHasVoted ? "Remove upvote" : "Upvote post"}
+      whileTap={{ scale: 0.96 }}
+      className={cn(
+        "inline-flex font-medium transition disabled:cursor-not-allowed disabled:opacity-70",
+        variant === "rail"
+          ? "w-11 flex-col items-center justify-center gap-1 rounded-(--r-sm) border px-1 py-2 text-xs"
+          : "items-center gap-2 rounded-(--r-sm) border px-3 py-1.5 text-sm",
+        hasVoted
+          ? "border-indigo-500 bg-indigo-50 text-indigo-600"
+          : "border-slate-300 bg-white text-slate-500",
+        className,
+      )}
+      aria-label={hasVoted ? "Remove upvote" : "Upvote post"}
     >
-      <HugeiconsIcon icon={ArrowUp01Icon} strokeWidth={2} className="size-4" />
-      <span>{initialCount}</span>
-    </button>
+      <HugeiconsIcon
+        icon={ArrowUp01Icon}
+        strokeWidth={2}
+        className={variant === "rail" ? "size-3.5" : "size-4"}
+      />
+      <span>{count}</span>
+    </motion.button>
   );
 }

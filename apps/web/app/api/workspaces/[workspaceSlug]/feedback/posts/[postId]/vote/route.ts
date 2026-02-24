@@ -10,6 +10,11 @@ import {
   getAnonVoteCookieConfig,
   getAnonVoteSession,
 } from "~/feedback/lib/vote-session";
+import {
+  FEEDBACK_ANON_COOKIE,
+  getAnonCookieForSync,
+  syncAnonymousVotesOnAuthenticatedRequest,
+} from "~/feedback/lib/vote-sync";
 import { FeedbackService } from "~/feedback/feedback.service";
 
 function getClientIp(request: NextRequest) {
@@ -52,6 +57,8 @@ export async function POST(
 
   const session = await auth.api.getSession({ headers: request.headers });
   const ip = getClientIp(request);
+  const anonCookie = request.cookies.get(FEEDBACK_ANON_COOKIE)?.value ?? null;
+  const validAnonSessionId = getAnonCookieForSync(anonCookie);
 
   const anonSession = session?.user
     ? { anonSessionId: null, isNew: false }
@@ -60,11 +67,19 @@ export async function POST(
     ? { userId: session.user.id, anonSessionId: null }
     : { userId: null, anonSessionId: anonSession.anonSessionId! };
 
-  const program = FeedbackService.voteForPost({
-    workspaceId: workspace.id,
-    postId,
-    identity,
-    ip,
+  const program = Effect.gen(function* () {
+    yield* syncAnonymousVotesOnAuthenticatedRequest({
+      workspaceId: workspace.id,
+      userId: session?.user?.id,
+      anonSessionId: validAnonSessionId,
+    });
+
+    return yield* FeedbackService.voteForPost({
+      workspaceId: workspace.id,
+      postId,
+      identity,
+      ip,
+    });
   }).pipe(
     Effect.match({
       onSuccess: (result) => {
@@ -97,6 +112,8 @@ export async function DELETE(
   }
 
   const session = await auth.api.getSession({ headers: request.headers });
+  const anonCookie = request.cookies.get(FEEDBACK_ANON_COOKIE)?.value ?? null;
+  const validAnonSessionId = getAnonCookieForSync(anonCookie);
   const anonSession = session?.user
     ? { anonSessionId: null, isNew: false }
     : getAnonVoteSession(request);
@@ -104,10 +121,18 @@ export async function DELETE(
     ? { userId: session.user.id, anonSessionId: null }
     : { userId: null, anonSessionId: anonSession.anonSessionId! };
 
-  const program = FeedbackService.unvoteForPost({
-    workspaceId: workspace.id,
-    postId,
-    identity,
+  const program = Effect.gen(function* () {
+    yield* syncAnonymousVotesOnAuthenticatedRequest({
+      workspaceId: workspace.id,
+      userId: session?.user?.id,
+      anonSessionId: validAnonSessionId,
+    });
+
+    return yield* FeedbackService.unvoteForPost({
+      workspaceId: workspace.id,
+      postId,
+      identity,
+    });
   }).pipe(
     Effect.match({
       onSuccess: (result) => {

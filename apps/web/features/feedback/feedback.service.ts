@@ -76,6 +76,11 @@ export class FeedbackService extends Effect.Service<FeedbackService>()(
 
         return yield* repository.getSnapshot(input);
       });
+      const getPublicSnapshot = Effect.fn("FeedbackService.getPublicSnapshot")(
+        function* (input: Parameters<typeof repository.getSnapshot>[0]) {
+          return yield* repository.getSnapshot(input);
+        },
+      );
       const createPost = Effect.fn("FeedbackService.createPost")(function* (
         input: Parameters<typeof repository.createPost>[0],
       ) {
@@ -87,6 +92,38 @@ export class FeedbackService extends Effect.Service<FeedbackService>()(
 
         return yield* repository.createPost(input);
       });
+      const listComments = Effect.fn("FeedbackService.listComments")(function* (
+        input: Parameters<typeof repository.listComments>[0] & {
+          userId: string | null;
+        },
+      ) {
+        yield* assertWorkspaceAccess({
+          workspaceId: input.workspaceId,
+          userId: input.userId,
+          action: "read",
+        });
+
+        return yield* repository.listComments({
+          workspaceId: input.workspaceId,
+          postId: input.postId,
+        });
+      });
+      const listPublicComments = Effect.fn(
+        "FeedbackService.listPublicComments",
+      )(function* (input: Parameters<typeof repository.listComments>[0]) {
+        return yield* repository.listComments(input);
+      });
+      const createComment = Effect.fn("FeedbackService.createComment")(
+        function* (input: Parameters<typeof repository.createComment>[0]) {
+          yield* assertWorkspaceAccess({
+            workspaceId: input.workspaceId,
+            userId: input.authorUserId,
+            action: "post",
+          });
+
+          return yield* repository.createComment(input);
+        },
+      );
       const voteForPost = Effect.fn("FeedbackService.voteForPost")(function* (
         input: Parameters<typeof repository.voteForPost>[0] & { ip: string },
       ) {
@@ -119,6 +156,13 @@ export class FeedbackService extends Effect.Service<FeedbackService>()(
           return yield* repository.unvoteForPost(input);
         },
       );
+      const claimAnonymousVotes = Effect.fn(
+        "FeedbackService.claimAnonymousVotes",
+      )(function* (
+        input: Parameters<typeof repository.claimAnonymousVotes>[0],
+      ) {
+        return yield* repository.claimAnonymousVotes(input);
+      });
       const seedWorkspaceDefaults = Effect.fn(
         "FeedbackService.seedWorkspaceDefaults",
       )(function* (
@@ -130,9 +174,14 @@ export class FeedbackService extends Effect.Service<FeedbackService>()(
       return {
         assertWorkspaceAccess,
         getSnapshot,
+        getPublicSnapshot,
         createPost,
+        listComments,
+        listPublicComments,
+        createComment,
         voteForPost,
         unvoteForPost,
+        claimAnonymousVotes,
         seedWorkspaceDefaults,
       };
     }),

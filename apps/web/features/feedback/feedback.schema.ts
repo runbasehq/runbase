@@ -4,6 +4,7 @@ import { FeedbackInvalidInput } from "./feedback.errors";
 
 const TITLE_MAX_LENGTH = 140;
 const CONTENT_MAX_LENGTH = 5000;
+const COMMENT_MAX_LENGTH = 2000;
 
 export const CreateFeedbackPostBodySchema = Schema.Struct({
   title: Schema.String,
@@ -15,6 +16,14 @@ export interface CreateFeedbackPostInput {
   title: string;
   content: string;
   boardId: string | null;
+}
+
+export const CreateFeedbackCommentBodySchema = Schema.Struct({
+  body: Schema.String,
+});
+
+export interface CreateFeedbackCommentInput {
+  body: string;
 }
 
 export const decodeCreateFeedbackPostInput = (raw: unknown) =>
@@ -57,4 +66,29 @@ export const decodeCreateFeedbackPostInput = (raw: unknown) =>
       content,
       boardId,
     } satisfies CreateFeedbackPostInput;
+  });
+
+export const decodeCreateFeedbackCommentInput = (raw: unknown) =>
+  Effect.gen(function* () {
+    const decoded = yield* Schema.decodeUnknown(
+      CreateFeedbackCommentBodySchema,
+    )(raw);
+
+    const body = decoded.body.trim();
+
+    if (!body) {
+      return yield* new FeedbackInvalidInput({
+        message: "Comment is required",
+      });
+    }
+
+    if (body.length > COMMENT_MAX_LENGTH) {
+      return yield* new FeedbackInvalidInput({
+        message: `Comment must be ${COMMENT_MAX_LENGTH} characters or less`,
+      });
+    }
+
+    return {
+      body,
+    } satisfies CreateFeedbackCommentInput;
   });

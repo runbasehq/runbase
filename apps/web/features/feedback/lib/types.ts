@@ -31,6 +31,17 @@ export interface FeedbackPostItem {
   viewerHasVoted: boolean;
 }
 
+export interface FeedbackCommentItem {
+  id: string;
+  postId: string;
+  body: string;
+  createdAt: Date;
+  updatedAt: Date;
+  authorUserId: string | null;
+  authorName: string | null;
+  authorImage: string | null;
+}
+
 export interface FeedbackSnapshot {
   boards: FeedbackBoardItem[];
   statuses: FeedbackStatusItem[];
@@ -40,3 +51,7 @@ export interface FeedbackSnapshot {
 export type VoteIdentity =
   | { userId: string; anonSessionId: null }
   | { userId: null; anonSessionId: string };
+
+export interface FeedbackVoteSyncResult {
+  claimedCount: number;
+}
