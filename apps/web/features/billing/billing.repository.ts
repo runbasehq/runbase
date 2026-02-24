@@ -1,6 +1,11 @@
 import "server-only";
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { Polar } from "@polar-sh/sdk";
+import { PolarError } from "@polar-sh/sdk/models/errors/polarerror";
+import {
+  validateEvent,
+  WebhookVerificationError,
+} from "@polar-sh/sdk/webhooks";
 
 import { and, eq, sql } from "drizzle-orm";
 import { Effect } from "effect";
@@ -143,6 +148,11 @@ function getPolarBaseUrl() {
   return "https://sandbox-api.polar.sh";
 }
 
+function getPolarServer() {
+  const environment = process.env.POLAR_ENVIRONMENT?.trim().toLowerCase();
+  return environment === "production" ? "production" : "sandbox";
+}
+
 function getPolarAccessToken() {
   const accessToken = process.env.POLAR_ACCESS_TOKEN?.trim();
 
@@ -162,93 +172,7 @@ function getPolarWebhookSecret() {
 
   return secret;
 }
-
-function getWebhookSecretCandidates(secret: string): Buffer[] {
-  if (secret.startsWith("whsec_")) {
-    return [Buffer.from(secret.slice("whsec_".length), "base64")];
-  }
-
-  if (secret.startsWith("polar_whs_")) {
-    return [Buffer.from(secret)];
-  }
-
-  return [Buffer.from(secret, "base64"), Buffer.from(secret)];
-}
-
-function parseWebhookSignatures(rawHeader: string): string[] {
-  return rawHeader
-    .split(" ")
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => {
-      const [version, value] = part.split(",");
-
-      if (version !== "v1") {
-        return null;
-      }
-
-      return value || null;
-    })
-    .filter((value): value is string => Boolean(value));
-}
-
-function verifyStandardWebhookSignature({
-  body,
-  headers,
-  secret,
-}: {
-  body: string;
-  headers: Record<string, string>;
-  secret: string;
-}) {
-  const webhookId = readString(headers["webhook-id"]);
-  const webhookTimestamp = readString(headers["webhook-timestamp"]);
-  const webhookSignature = readString(headers["webhook-signature"]);
-
-  if (!webhookId || !webhookTimestamp || !webhookSignature) {
-    return false;
-  }
-
-  const toleranceSeconds = Number(
-    process.env.POLAR_WEBHOOK_TOLERANCE_SECONDS?.trim() || "300",
-  );
-  const timestamp = Number(webhookTimestamp);
-
-  if (!Number.isFinite(timestamp)) {
-    return false;
-  }
-
-  const age = Math.abs(Math.floor(Date.now() / 1000) - timestamp);
-
-  if (age > toleranceSeconds) {
-    return false;
-  }
-
-  const signedPayload = `${webhookId}.${webhookTimestamp}.${body}`;
-  const signatures = parseWebhookSignatures(webhookSignature);
-
-  return getWebhookSecretCandidates(secret).some((secretCandidate) => {
-    const expected = createHmac("sha256", secretCandidate)
-      .update(signedPayload)
-      .digest("base64");
-    const expectedBuffer = Buffer.from(expected);
-
-    return signatures.some((signature) => {
-      const candidateBuffer = Buffer.from(signature);
-
-      if (candidateBuffer.length !== expectedBuffer.length) {
-        return false;
-      }
-
-      return timingSafeEqual(candidateBuffer, expectedBuffer);
-    });
-  });
-}
-
-async function callPolarApi<TResponse>(
-  path: string,
-  body: Record<string, unknown>,
-): Promise<TResponse> {
+function getPolarClient() {
   const accessToken = getPolarAccessToken();
 
   if (!accessToken) {
@@ -258,25 +182,35 @@ async function callPolarApi<TResponse>(
     });
   }
 
-  const response = await fetch(`${getPolarBaseUrl()}${path}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify(body),
-  });
+  const explicitUrl = process.env.POLAR_API_BASE_URL?.trim();
 
-  if (!response.ok) {
-    const message = await response.text();
-    throw new BillingProviderError({
-      operation: `polar:${path}`,
-      status: response.status,
-      message: message || "Polar request failed",
+  return new Polar({
+    accessToken,
+    server: getPolarServer(),
+    serverURL: explicitUrl || getPolarBaseUrl(),
+  });
+}
+
+function toProviderError(
+  operation: string,
+  error: unknown,
+): BillingProviderError {
+  if (error instanceof PolarError) {
+    return new BillingProviderError({
+      operation,
+      status: error.statusCode,
+      message: error.message || error.body || "Polar request failed",
     });
   }
 
-  return (await response.json()) as TResponse;
+  return new BillingProviderError({
+    operation,
+    status: 502,
+    message:
+      error instanceof Error
+        ? error.message
+        : "Unable to reach billing provider",
+  });
 }
 
 export class BillingRepository extends Effect.Service<BillingRepository>()(
@@ -723,50 +657,21 @@ export class BillingRepository extends Effect.Service<BillingRepository>()(
         > =>
           Effect.tryPromise({
             try: async () => {
-              const payload: Record<string, unknown> = {
+              const polar = getPolarClient();
+              const checkout = await polar.checkouts.create({
                 products: [productId],
-                success_url: successUrl,
-                return_url: returnUrl,
-                external_customer_id: externalCustomerId,
+                successUrl,
+                returnUrl,
+                externalCustomerId,
                 metadata,
-              };
-
-              if (customerEmail) {
-                payload.customer_email = customerEmail;
-              }
-
-              if (customerName) {
-                payload.customer_name = customerName;
-              }
-
-              if (typeof allowTrial === "boolean") {
-                payload.allow_trial = allowTrial;
-              }
-
-              if (trialInterval) {
-                payload.trial_interval = trialInterval;
-              }
-
-              if (typeof trialIntervalCount === "number") {
-                payload.trial_interval_count = trialIntervalCount;
-              }
-
-              if (discountId) {
-                payload.discount_id = discountId;
-              }
-
-              const data = await callPolarApi<{
-                url?: unknown;
-                is_payment_form_required?: unknown;
-                is_payment_required?: unknown;
-                is_payment_setup_required?: unknown;
-                trial_end?: unknown;
-              }>("/v1/checkouts/", payload);
-              const url = readString(data.url);
+                customerEmail,
+                customerName,
+              });
+              const url = readString(checkout.url);
 
               if (!url) {
                 throw new BillingProviderError({
-                  operation: "polar:/v1/checkouts/",
+                  operation: "polar.checkouts.create",
                   status: 502,
                   message: "Missing checkout URL",
                 });
@@ -796,14 +701,7 @@ export class BillingRepository extends Effect.Service<BillingRepository>()(
                 return error;
               }
 
-              return new BillingProviderError({
-                operation: "polar:/v1/checkouts/",
-                status: 502,
-                message:
-                  error instanceof Error
-                    ? error.message
-                    : "Unable to create checkout",
-              });
+              return toProviderError("polar.checkouts.create", error);
             },
           }),
       );
@@ -823,17 +721,16 @@ export class BillingRepository extends Effect.Service<BillingRepository>()(
         > =>
           Effect.tryPromise({
             try: async () => {
-              const data = await callPolarApi<{
-                customer_portal_url?: unknown;
-              }>("/v1/customer-sessions/", {
-                external_customer_id: externalCustomerId,
-                return_url: returnUrl,
+              const polar = getPolarClient();
+              const session = await polar.customerSessions.create({
+                externalCustomerId,
+                returnUrl,
               });
-              const url = readString(data.customer_portal_url);
+              const url = readString(session.customerPortalUrl);
 
               if (!url) {
                 throw new BillingProviderError({
-                  operation: "polar:/v1/customer-sessions/",
+                  operation: "polar.customerSessions.create",
                   status: 502,
                   message: "Missing customer portal URL",
                 });
@@ -849,14 +746,7 @@ export class BillingRepository extends Effect.Service<BillingRepository>()(
                 return error;
               }
 
-              return new BillingProviderError({
-                operation: "polar:/v1/customer-sessions/",
-                status: 502,
-                message:
-                  error instanceof Error
-                    ? error.message
-                    : "Unable to create customer session",
-              });
+              return toProviderError("polar.customerSessions.create", error);
             },
           }),
       );
@@ -885,17 +775,9 @@ export class BillingRepository extends Effect.Service<BillingRepository>()(
                 });
               }
 
-              const isValid = verifyStandardWebhookSignature({
-                body,
-                headers,
-                secret: webhookSecret,
-              });
-
-              if (!isValid) {
-                throw new BillingWebhookSignatureInvalid({});
-              }
-
-              const payload = readRecord(JSON.parse(body));
+              const payload = readRecord(
+                validateEvent(body, headers, webhookSecret),
+              );
               const eventType = readString(payload.type) || "unknown";
               const eventId =
                 readString(payload.id) ||
@@ -914,6 +796,10 @@ export class BillingRepository extends Effect.Service<BillingRepository>()(
               }
 
               if (error instanceof BillingWebhookSignatureInvalid) {
+                return new BillingWebhookSignatureInvalid({});
+              }
+
+              if (error instanceof WebhookVerificationError) {
                 return new BillingWebhookSignatureInvalid({});
               }
 
