@@ -12,10 +12,11 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "polar:bootstrap-products": "bun ./scripts/polar-bootstrap-products.ts",
-    "polar:setup-webhook": "bun ./scripts/polar-setup-webhook.ts"
+    "polar:bootstrap-products": "pnpm exec tsx ./scripts/polar-bootstrap-products.ts",
+    "polar:setup-webhook": "pnpm exec tsx ./scripts/polar-setup-webhook.ts"
   },
   "dependencies": {
+    "@joycostudio/marquee": "^0.0.13",
     "@base-ui/react": "^1.2.0",
     "@hugeicons/core-free-icons": "^3.1.1",
     "@hugeicons/react": "^1.1.5",
@@ -60,14 +61,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
+    "tsx": "^4.20.4",
     "typescript": "^5"
-  },
-  "ignoreScripts": [
-    "sharp",
-    "unrs-resolver"
-  ],
-  "trustedDependencies": [
-    "sharp",
-    "unrs-resolver"
-  ]
+  }
 }

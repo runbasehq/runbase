@@ -43,39 +43,54 @@ export function FeedbackComments({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="space-y-2">
         {commentsQuery.isLoading ? (
-          <p className="text-sm text-(--muted)">Loading comments...</p>
+          <p
+            role="status"
+            aria-live="polite"
+            className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+          >
+            Loading comments...
+          </p>
         ) : null}
 
         {commentsQuery.data?.map((comment) => (
           <article
             key={comment.id}
-            className="rounded-(--r-xs) border border-(--border) bg-(--surface) p-3"
+            className="rounded-xl border border-slate-200 bg-white p-3"
           >
-            <p className="text-sm text-(--text)">{comment.body}</p>
-            <p className="mt-1 text-xs text-(--muted)">
+            <p className="text-sm leading-6 text-slate-900">{comment.body}</p>
+            <p className="mt-1 text-xs text-slate-600">
               {comment.authorName || "Runbase user"}
             </p>
           </article>
         ))}
 
         {!commentsQuery.isLoading && !commentsQuery.data?.length ? (
-          <p className="text-sm text-(--muted)">No comments yet.</p>
+          <p
+            role="status"
+            aria-live="polite"
+            className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+          >
+            No comments yet.
+          </p>
         ) : null}
       </div>
 
-      <form className="space-y-2" onSubmit={handleSubmit}>
+      <form
+        className="space-y-2 rounded-xl border border-slate-200 bg-white p-3"
+        onSubmit={handleSubmit}
+      >
         <Textarea
           value={body}
           onChange={(event) => setBody(event.target.value)}
           placeholder="Add a comment"
           maxLength={2000}
           required
-          className="min-h-20"
+          className="min-h-20 rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500"
         />
-        <div className="flex justify-end">
+        <div className="flex justify-end border-t border-slate-200 pt-2">
           <FancyButton.Root
             type="submit"
             variant="neutral"

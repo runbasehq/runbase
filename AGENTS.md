@@ -4,8 +4,8 @@ Monorepo-wide guidance for humans and coding agents.
 
 ## Package Manager
 
-- Use `bun` as the package manager across this monorepo.
-- Prefer `bun run <script>` for scripts and `bunx <tool>` for one-off CLIs.
+- Use `pnpm` as the package manager across this monorepo.
+- Prefer `pnpm run <script>` for scripts and `pnpm dlx <tool>` for one-off CLIs.
 
 ## Commit Messages
 

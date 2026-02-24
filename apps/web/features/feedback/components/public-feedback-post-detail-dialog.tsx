@@ -62,14 +62,14 @@ export function PublicFeedbackPostDetailDialog({
                   <DialogTitle className="text-xl font-semibold text-(--text)">
                     {post.title}
                   </DialogTitle>
-                  <DialogDescription className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-base leading-relaxed text-slate-800">
+                  <DialogDescription className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-base leading-relaxed text-slate-800">
                     {post.content}
                   </DialogDescription>
                 </DialogHeader>
 
                 {!isAuthenticated ? (
-                  <div className="mt-4 flex items-center justify-between rounded-(--r-sm) border border-(--border) bg-(--bg) px-3 py-2 text-sm">
-                    <span className="text-(--muted)">
+                  <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <span className="text-slate-700">
                       Please authenticate to join the conversation.
                     </span>
                     <button
@@ -93,10 +93,10 @@ export function PublicFeedbackPostDetailDialog({
                     id="comments-tab"
                     aria-selected={tab === "comments"}
                     aria-controls="comments-panel"
-                    className={`rounded-(--r-xs) px-3 py-1.5 text-sm focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none ${
+                    className={`rounded-xl border px-3 py-1.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 ${
                       tab === "comments"
-                        ? "bg-white text-slate-900"
-                        : "text-slate-600"
+                        ? "border-slate-300 bg-white text-slate-900"
+                        : "border-transparent text-slate-700 hover:bg-white/70"
                     }`}
                     onClick={() => setTab("comments")}
                   >
@@ -108,10 +108,10 @@ export function PublicFeedbackPostDetailDialog({
                     id="activity-tab"
                     aria-selected={tab === "activity"}
                     aria-controls="activity-panel"
-                    className={`rounded-(--r-xs) px-3 py-1.5 text-sm focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none ${
+                    className={`rounded-xl border px-3 py-1.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 ${
                       tab === "activity"
-                        ? "bg-white text-slate-900"
-                        : "text-slate-600"
+                        ? "border-slate-300 bg-white text-slate-900"
+                        : "border-transparent text-slate-700 hover:bg-white/70"
                     }`}
                     onClick={() => setTab("activity")}
                   >
@@ -139,7 +139,7 @@ export function PublicFeedbackPostDetailDialog({
                       id="activity-panel"
                       role="tabpanel"
                       aria-labelledby="activity-tab"
-                      className="rounded-(--r-sm) border border-slate-200 bg-white p-4 text-sm text-slate-600"
+                      className="rounded-xl border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-700"
                     >
                       Activity feed coming soon.
                     </div>
@@ -148,7 +148,7 @@ export function PublicFeedbackPostDetailDialog({
               </section>
 
               <aside className="space-y-4 p-5">
-                <div className="rounded-(--r-sm) border border-(--border) bg-(--bg) p-3">
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
                   <p className="text-xs font-medium uppercase tracking-[0.1em] text-(--muted-2)">
                     Upvotes
                   </p>
@@ -162,7 +162,7 @@ export function PublicFeedbackPostDetailDialog({
                   </div>
                 </div>
 
-                <div className="rounded-(--r-sm) border border-slate-200 bg-white p-3">
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
                   <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
                     Status
                   </p>
@@ -183,7 +183,7 @@ export function PublicFeedbackPostDetailDialog({
                   </p>
                 </div>
 
-                <div className="rounded-(--r-sm) border border-(--border) bg-(--bg) p-3">
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
                   <p className="text-sm font-semibold text-slate-900">
                     Subscribe to post
                   </p>

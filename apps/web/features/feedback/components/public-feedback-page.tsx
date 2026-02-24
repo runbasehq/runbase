@@ -7,6 +7,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { IconFilter } from "@/components/icons/icon-filter";
 import { IconPlusCircle } from "@/components/icons/icon-plus-circle";
+import { IconSearch } from "@/components/icons/icon-search";
 import { Input } from "@/components/ui/input";
 import type {
   FeedbackBoardItem,
@@ -241,12 +242,13 @@ export function PublicFeedbackPage({
                 Trending
               </button>
 
-              <div className="ml-auto w-full sm:w-56">
+              <div className="relative ml-auto w-full sm:w-56">
+                <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-(--muted)" />
                 <Input
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   placeholder="Search"
-                  className="bg-(--surface)"
+                  className="h-9 rounded-(--r-sm) border-(--border) bg-(--surface) pr-3 pl-9 text-sm text-(--text) placeholder:text-(--muted) focus-visible:border-indigo-500 focus-visible:ring-indigo-400/30"
                 />
               </div>
 
