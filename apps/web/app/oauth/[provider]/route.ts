@@ -96,14 +96,23 @@ export async function GET(
         preferredWorkspaceOrigin || safeOpenerOrigin || authRootOrigin,
       ).toString();
 
+  const fallbackOpenerOrigin = (() => {
+    try {
+      return new URL(absoluteReturnTo).origin;
+    } catch {
+      return null;
+    }
+  })();
+  const resolvedOpenerOrigin = safeOpenerOrigin || fallbackOpenerOrigin;
+
   const finalLoadingOrigin =
-    safeOpenerOrigin || preferredWorkspaceOrigin || authRootOrigin;
+    resolvedOpenerOrigin || preferredWorkspaceOrigin || authRootOrigin;
   const finalLoadingUrl = new URL("/oauth/loading", finalLoadingOrigin);
   if (authStateParam) {
     finalLoadingUrl.searchParams.set("token", authStateParam);
   }
-  if (safeOpenerOrigin) {
-    finalLoadingUrl.searchParams.set("openerOrigin", safeOpenerOrigin);
+  if (resolvedOpenerOrigin) {
+    finalLoadingUrl.searchParams.set("openerOrigin", resolvedOpenerOrigin);
   }
   finalLoadingUrl.searchParams.set("returnTo", absoluteReturnTo);
   if (typeParam) {
@@ -125,8 +134,8 @@ export async function GET(
   if (authStateParam) {
     callbackUrl.searchParams.set("authState", authStateParam);
   }
-  if (safeOpenerOrigin) {
-    callbackUrl.searchParams.set("openerOrigin", safeOpenerOrigin);
+  if (resolvedOpenerOrigin) {
+    callbackUrl.searchParams.set("openerOrigin", resolvedOpenerOrigin);
   }
 
   const authStartUrl = new URL("/api/auth/sign-in/social", authRootOrigin);

@@ -31,18 +31,27 @@ export function OAuthLoadingClient({
       }
     }
 
-    if (window.opener && !window.opener.closed && openerOrigin) {
-      window.opener.postMessage(
-        {
-          type: "runbase-auth-complete",
-          refreshOnly: true,
-          returnTo,
-          ...(authState ? { authState } : {}),
-          ...(authType ? { authType } : {}),
-          ...(oid ? { oid } : {}),
-        },
-        openerOrigin,
-      );
+    if (window.opener && !window.opener.closed) {
+      const payload = {
+        type: "runbase-auth-complete",
+        refreshOnly: true,
+        returnTo,
+        ...(authState ? { authState } : {}),
+        ...(authType ? { authType } : {}),
+        ...(oid ? { oid } : {}),
+      };
+
+      try {
+        window.opener.postMessage(payload, openerOrigin || "*");
+      } catch {
+        if (openerOrigin) {
+          try {
+            window.opener.postMessage(payload, "*");
+          } catch {
+            // ignore and continue fallback navigation
+          }
+        }
+      }
 
       window.close();
 
