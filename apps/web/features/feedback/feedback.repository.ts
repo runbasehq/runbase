@@ -1,7 +1,9 @@
 import "server-only";
 
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { Effect } from "effect";
+import sanitizeHtml from "sanitize-html";
 
 import { db } from "@/lib/db";
 import { getRedis } from "@/lib/redis";
@@ -19,12 +21,15 @@ import {
   enforceVotePerPostRateLimit as enforceVotePerPostRateLimitIo,
   enforceVoteRateLimit as enforceVoteRateLimitIo,
 } from "~/feedback/lib/rate-limit";
+import { normalizeFeedbackContentToHtml } from "~/feedback/lib/rich-content";
 import type {
   FeedbackBoardItem,
   FeedbackCommentItem,
+  FeedbackMediaType,
   FeedbackPostItem,
   FeedbackSnapshot,
   FeedbackStatusItem,
+  FeedbackUploadedMedia,
   FeedbackVoteSyncResult,
   VoteIdentity,
 } from "~/feedback/lib/types";
@@ -32,9 +37,12 @@ import type {
 import type {
   CreateFeedbackCommentInput,
   CreateFeedbackPostInput,
+  UploadFeedbackMediaInput,
 } from "./feedback.schema";
 import {
   FeedbackInvalidBoard,
+  FeedbackMediaStorageNotConfigured,
+  FeedbackMediaUploadFailed,
   FeedbackNoBoardConfigured,
   FeedbackNoStatusConfigured,
   FeedbackPersistenceError,
@@ -53,6 +61,13 @@ export interface CreateFeedbackPostParams {
   workspaceId: string;
   authorUserId: string;
   input: CreateFeedbackPostInput;
+}
+
+export interface UploadFeedbackMediaParams {
+  workspaceId: string;
+  authorUserId: string;
+  input: UploadFeedbackMediaInput;
+  bytes: Uint8Array;
 }
 
 export interface FeedbackVoteParams {
@@ -105,6 +120,14 @@ export interface FeedbackVoteResult {
   alreadyVoted: boolean;
 }
 
+interface CloudflareR2Config {
+  bucket: string;
+  endpoint: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  publicUrl: string;
+}
+
 function hasTag(error: unknown, tag: string): boolean {
   return Boolean(
     error &&
@@ -148,6 +171,164 @@ const fromPersistencePromise = <A>(
     try: thunk,
     catch: () => toPersistenceError(operation),
   });
+
+const ALLOWED_CONTENT_TAGS = [
+  "p",
+  "br",
+  "strong",
+  "b",
+  "em",
+  "i",
+  "u",
+  "s",
+  "code",
+  "pre",
+  "blockquote",
+  "h1",
+  "h2",
+  "h3",
+  "ul",
+  "ol",
+  "li",
+  "a",
+  "img",
+  "video",
+  "source",
+];
+
+const ALLOWED_CONTENT_ATTRIBUTES: sanitizeHtml.IOptions["allowedAttributes"] = {
+  a: ["href", "target", "rel"],
+  img: ["src", "alt", "title", "style", "data-align", "data-width"],
+  video: [
+    "src",
+    "controls",
+    "preload",
+    "poster",
+    "style",
+    "data-align",
+    "data-width",
+  ],
+  source: ["src", "type"],
+};
+
+const ALLOWED_MEDIA_STYLES: NonNullable<
+  sanitizeHtml.IOptions["allowedStyles"]
+> = {
+  img: {
+    display: [/^block$/],
+    width: [/^(100|[4-9]\d)%$/],
+    "max-width": [/^100%$/],
+    height: [/^auto$/],
+    "aspect-ratio": [/^auto$/],
+    "object-fit": [/^contain$/],
+    "margin-left": [/^(auto|0|0px)$/],
+    "margin-right": [/^(auto|0|0px)$/],
+  },
+  video: {
+    display: [/^block$/],
+    width: [/^(100|[4-9]\d)%$/],
+    "max-width": [/^100%$/],
+    "margin-left": [/^(auto|0|0px)$/],
+    "margin-right": [/^(auto|0|0px)$/],
+  },
+};
+
+function sanitizeFeedbackContent(content: string) {
+  const normalized = normalizeFeedbackContentToHtml(content);
+  const sanitized = sanitizeHtml(normalized, {
+    allowedTags: ALLOWED_CONTENT_TAGS,
+    allowedAttributes: ALLOWED_CONTENT_ATTRIBUTES,
+    allowedStyles: ALLOWED_MEDIA_STYLES,
+    allowedSchemes: ["http", "https", "mailto"],
+    allowedSchemesByTag: {
+      img: ["http", "https"],
+      video: ["http", "https"],
+      source: ["http", "https"],
+    },
+    allowProtocolRelative: false,
+  }).trim();
+
+  return sanitized.length ? sanitized : "<p></p>";
+}
+
+let cachedR2Config: CloudflareR2Config | null | undefined;
+let cachedR2Client: S3Client | null = null;
+
+function readCloudflareR2Config() {
+  if (cachedR2Config !== undefined) {
+    return cachedR2Config;
+  }
+
+  const bucket = process.env.CLOUDFLARE_R2_BUCKET?.trim();
+  const endpoint = process.env.CLOUDFLARE_R2_ENDPOINT?.trim();
+  const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID?.trim();
+  const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY?.trim();
+  const publicUrl = process.env.CLOUDFLARE_R2_PUBLIC_URL?.trim();
+
+  if (!bucket || !endpoint || !accessKeyId || !secretAccessKey || !publicUrl) {
+    cachedR2Config = null;
+    return cachedR2Config;
+  }
+
+  cachedR2Config = {
+    bucket,
+    endpoint,
+    accessKeyId,
+    secretAccessKey,
+    publicUrl: publicUrl.replace(/\/+$/, ""),
+  };
+
+  return cachedR2Config;
+}
+
+function getCloudflareR2Client(config: CloudflareR2Config) {
+  if (!cachedR2Client) {
+    cachedR2Client = new S3Client({
+      region: "auto",
+      endpoint: config.endpoint,
+      credentials: {
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+      },
+    });
+  }
+
+  return cachedR2Client;
+}
+
+function sanitizeFileName(value: string) {
+  const normalized = value
+    .trim()
+    .replace(/[/\\]/g, "-")
+    .replace(/[^a-zA-Z0-9._ -]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^\.+/, "")
+    .replace(/\.+$/, "");
+
+  return normalized || "file";
+}
+
+function extractFileExtension(value: string) {
+  const fileName = sanitizeFileName(value);
+  const match = fileName.match(/\.([a-zA-Z0-9]{1,10})$/);
+  return match ? match[1].toLowerCase() : "";
+}
+
+function buildFeedbackMediaKey(input: {
+  workspaceId: string;
+  authorUserId: string;
+  mediaType: FeedbackMediaType;
+  fileName: string;
+}) {
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const extension = extractFileExtension(input.fileName);
+  const suffix = extension.length ? `.${extension}` : "";
+
+  return `feedback/${input.workspaceId}/${input.authorUserId}/${input.mediaType}/${year}/${month}/${crypto.randomUUID()}${suffix}`;
+}
 
 const resolveBoardId = (
   workspaceId: string,
@@ -486,6 +667,7 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
             const boardId = yield* resolveBoardId(workspaceId, input.boardId);
             const statusId = yield* resolveStatusId(workspaceId);
             const baseSlug = slugifyTitle(input.title);
+            const sanitizedContent = sanitizeFeedbackContent(input.content);
 
             const createdPostId = yield* Effect.tryPromise({
               try: async () => {
@@ -504,7 +686,7 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
                         authorUserId,
                         title: input.title,
                         slug,
-                        content: input.content,
+                        content: sanitizedContent,
                         publishedAt: new Date(),
                       })
                       .returning({ id: feedbackPost.id });
@@ -584,6 +766,60 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
               ...createdPost,
               viewerHasVoted: false,
             } satisfies FeedbackPostItem;
+          }),
+      );
+      const uploadMedia = Effect.fn("FeedbackRepository.uploadMedia")(
+        ({
+          workspaceId,
+          authorUserId,
+          input,
+          bytes,
+        }: UploadFeedbackMediaParams): Effect.Effect<
+          FeedbackUploadedMedia,
+          FeedbackMediaStorageNotConfigured | FeedbackMediaUploadFailed
+        > =>
+          Effect.gen(function* () {
+            const config = readCloudflareR2Config();
+
+            if (!config) {
+              return yield* new FeedbackMediaStorageNotConfigured({});
+            }
+
+            const key = buildFeedbackMediaKey({
+              workspaceId,
+              authorUserId,
+              mediaType: input.mediaType,
+              fileName: input.fileName,
+            });
+
+            const client = getCloudflareR2Client(config);
+
+            yield* Effect.tryPromise({
+              try: () =>
+                client.send(
+                  new PutObjectCommand({
+                    Bucket: config.bucket,
+                    Key: key,
+                    Body: bytes,
+                    ContentType: input.contentType,
+                    ContentLength: input.size,
+                    CacheControl: "public, max-age=31536000, immutable",
+                  }),
+                ),
+              catch: () =>
+                new FeedbackMediaUploadFailed({
+                  operation: "feedback.uploadMedia.putObject",
+                }),
+            });
+
+            return {
+              key,
+              url: `${config.publicUrl}/${key}`,
+              fileName: input.fileName,
+              contentType: input.contentType,
+              size: input.size,
+              mediaType: input.mediaType,
+            } satisfies FeedbackUploadedMedia;
           }),
       );
       const enforceVoteRateLimit = Effect.fn(
@@ -925,6 +1161,7 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
         > =>
           Effect.gen(function* () {
             const existingCount = yield* getPostCount(workspaceId, postId);
+            const sanitizedBody = sanitizeFeedbackContent(input.body);
 
             if (existingCount === null) {
               return yield* new FeedbackPostNotFound({ postId });
@@ -941,7 +1178,7 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
                     postId,
                     authorUserId,
                     anonSessionId: null,
-                    body: input.body,
+                    body: sanitizedBody,
                     isInternal: false,
                   })
                   .returning({ id: feedbackComment.id });
@@ -1138,6 +1375,7 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
         getWorkspaceMembership,
         getSnapshot,
         createPost,
+        uploadMedia,
         enforceVoteRateLimit,
         seedWorkspaceDefaults,
         voteForPost,

@@ -53,6 +53,16 @@ export class FeedbackPersistenceError extends Data.TaggedError(
   operation: string;
 }> {}
 
+export class FeedbackMediaStorageNotConfigured extends Data.TaggedError(
+  "FeedbackMediaStorageNotConfigured",
+)<Record<string, never>> {}
+
+export class FeedbackMediaUploadFailed extends Data.TaggedError(
+  "FeedbackMediaUploadFailed",
+)<{
+  operation: string;
+}> {}
+
 export type FeedbackRouteError =
   | ParseError
   | FeedbackInvalidInput
@@ -64,7 +74,9 @@ export type FeedbackRouteError =
   | FeedbackRateLimited
   | FeedbackWorkspaceNotFound
   | FeedbackForbidden
-  | FeedbackPersistenceError;
+  | FeedbackPersistenceError
+  | FeedbackMediaStorageNotConfigured
+  | FeedbackMediaUploadFailed;
 
 export function handleFeedbackError(error: FeedbackRouteError): NextResponse {
   switch (error._tag) {
@@ -117,6 +129,16 @@ export function handleFeedbackError(error: FeedbackRouteError): NextResponse {
       return NextResponse.json(
         { error: "Internal server error" },
         { status: 500 },
+      );
+    case "FeedbackMediaStorageNotConfigured":
+      return NextResponse.json(
+        { error: "Media upload is not configured" },
+        { status: 503 },
+      );
+    case "FeedbackMediaUploadFailed":
+      return NextResponse.json(
+        { error: "Media upload failed" },
+        { status: 502 },
       );
   }
 }

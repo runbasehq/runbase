@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { v4 as uuidv4 } from "uuid";
 
 import type {
   FeedbackCommentItem,
@@ -83,7 +84,7 @@ export function useCreateFeedbackComment(
         queryClient.getQueryData<FeedbackPostItem[]>(postsKey);
 
       const optimisticComment: FeedbackCommentItem = {
-        id: `optimistic:${crypto.randomUUID()}`,
+        id: `optimistic:${uuidv4()}`,
         postId,
         body,
         createdAt: new Date(),

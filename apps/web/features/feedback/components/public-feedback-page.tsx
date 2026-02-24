@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { FancyButton } from "@/components/ui/fancy-button";
@@ -26,6 +26,7 @@ import type {
   FeedbackStatusItem,
 } from "~/feedback/lib/types";
 import { UpvoteButton } from "~/feedback/components/upvote-button";
+import { extractTextFromFeedbackContent } from "~/feedback/lib/rich-content";
 import { usePosts } from "~/posts/hooks/use-posts";
 import { postsQueryKeys } from "~/posts/lib/query-keys";
 
@@ -68,6 +69,7 @@ export function PublicFeedbackPage({
   const [viewerIsAuthenticated, setViewerIsAuthenticated] =
     useState(isAuthenticated);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const prefetchedPostIdsRef = useRef<Set<string>>(new Set());
   const postsQuery = usePosts({ workspaceSlug, initialPosts });
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -96,7 +98,8 @@ export function PublicFeedbackPage({
 
     const searched = normalizedSearch
       ? posts.filter((post) => {
-          const haystack = `${post.title} ${post.content}`.toLowerCase();
+          const haystack =
+            `${post.title} ${extractTextFromFeedbackContent(post.content)}`.toLowerCase();
           return haystack.includes(normalizedSearch);
         })
       : posts;
@@ -207,18 +210,61 @@ export function PublicFeedbackPage({
   }
 
   function excerpt(value: string) {
-    if (value.length <= 160) {
-      return value;
+    const text = extractTextFromFeedbackContent(value);
+
+    if (text.length <= 160) {
+      return text;
     }
 
-    return `${value.slice(0, 157)}...`;
+    return `${text.slice(0, 157)}...`;
   }
 
   useEffect(() => {
     if (!pathPostId && legacyQueryPostId) {
-      router.replace(getPostPath(legacyQueryPostId), { scroll: false });
+      const targetPath = isScopedWorkspacePath
+        ? `/s/${workspaceSlug}/p/${legacyQueryPostId}`
+        : `/p/${legacyQueryPostId}`;
+      router.replace(targetPath, { scroll: false });
     }
-  }, [legacyQueryPostId, pathPostId, router, workspaceSlug]);
+  }, [
+    isScopedWorkspacePath,
+    legacyQueryPostId,
+    pathPostId,
+    router,
+    workspaceSlug,
+  ]);
+
+  useEffect(() => {
+    if (!posts.length) {
+      return;
+    }
+
+    const prefetchPostPath = (postId: string) => {
+      if (prefetchedPostIdsRef.current.has(postId)) {
+        return;
+      }
+
+      prefetchedPostIdsRef.current.add(postId);
+      const postPath = isScopedWorkspacePath
+        ? `/s/${workspaceSlug}/p/${postId}`
+        : `/p/${postId}`;
+      void router.prefetch(postPath);
+    };
+
+    for (const post of posts.slice(0, 6)) {
+      prefetchPostPath(post.id);
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      for (const post of posts.slice(6)) {
+        prefetchPostPath(post.id);
+      }
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isScopedWorkspacePath, posts, router, workspaceSlug]);
 
   return (
     <main className="min-h-screen bg-(--bg)" data-ui-theme="agency-dashboard">
@@ -360,6 +406,7 @@ export function PublicFeedbackPage({
                   workspaceSlug={workspaceSlug}
                   defaultBoard={defaultBoard}
                   defaultStatus={defaultStatus}
+                  viewer={viewer}
                   onUnauthorized={() => setAuthOpen(true)}
                 />
               ) : (
@@ -380,15 +427,27 @@ export function PublicFeedbackPage({
                 {filteredPosts.map((post) => (
                   <article
                     key={post.id}
-                    className="grid grid-cols-[minmax(0,1fr)_64px] border-b border-(--border) last:border-b-0"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open post: ${post.title}`}
+                    className="grid cursor-pointer grid-cols-[minmax(0,1fr)_64px] border-b border-(--border) transition hover:bg-slate-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60 last:border-b-0"
+                    onClick={() => openPost(post.id)}
+                    onMouseEnter={() => prefetchPost(post.id)}
+                    onFocus={() => prefetchPost(post.id)}
+                    onKeyDown={(event) => {
+                      if (event.target !== event.currentTarget) {
+                        return;
+                      }
+
+                      if (event.key !== "Enter" && event.key !== " ") {
+                        return;
+                      }
+
+                      event.preventDefault();
+                      openPost(post.id);
+                    }}
                   >
-                    <button
-                      type="button"
-                      className="block w-full p-5 text-left focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none"
-                      onClick={() => openPost(post.id)}
-                      onMouseEnter={() => prefetchPost(post.id)}
-                      onFocus={() => prefetchPost(post.id)}
-                    >
+                    <div className="block w-full p-5 text-left">
                       <h3 className="text-xl leading-tight font-semibold tracking-tight text-(--text)">
                         {post.title}
                       </h3>
@@ -401,7 +460,7 @@ export function PublicFeedbackPage({
                         <span>{post.commentCount} comments</span>
                         <span>{post.createdAt.toLocaleDateString()}</span>
                       </div>
-                    </button>
+                    </div>
 
                     <div className="border-l border-(--border) bg-(--surface)">
                       <UpvoteButton

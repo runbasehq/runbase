@@ -92,6 +92,17 @@ export class FeedbackService extends Effect.Service<FeedbackService>()(
 
         return yield* repository.createPost(input);
       });
+      const uploadMedia = Effect.fn("FeedbackService.uploadMedia")(function* (
+        input: Parameters<typeof repository.uploadMedia>[0],
+      ) {
+        yield* assertWorkspaceAccess({
+          workspaceId: input.workspaceId,
+          userId: input.authorUserId,
+          action: "post",
+        });
+
+        return yield* repository.uploadMedia(input);
+      });
       const listComments = Effect.fn("FeedbackService.listComments")(function* (
         input: Parameters<typeof repository.listComments>[0] & {
           userId: string | null;
@@ -176,6 +187,7 @@ export class FeedbackService extends Effect.Service<FeedbackService>()(
         getSnapshot,
         getPublicSnapshot,
         createPost,
+        uploadMedia,
         listComments,
         listPublicComments,
         createComment,

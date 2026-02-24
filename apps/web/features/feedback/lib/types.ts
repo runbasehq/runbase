@@ -48,6 +48,17 @@ export interface FeedbackSnapshot {
   posts: FeedbackPostItem[];
 }
 
+export type FeedbackMediaType = "image" | "video" | "attachment";
+
+export interface FeedbackUploadedMedia {
+  key: string;
+  url: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+  mediaType: FeedbackMediaType;
+}
+
 export type VoteIdentity =
   | { userId: string; anonSessionId: null }
   | { userId: null; anonSessionId: string };

@@ -13,7 +13,6 @@ import { FancyButton } from "@/components/ui/fancy-button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -25,6 +24,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { FeedbackPostItem } from "~/feedback/lib/types";
+import {
+  extractTextFromFeedbackContent,
+  normalizeFeedbackContentToHtml,
+} from "~/feedback/lib/rich-content";
 
 import { FeedbackComments } from "./feedback-comments";
 import { UpvoteButton } from "./upvote-button";
@@ -68,16 +71,26 @@ export function PublicFeedbackPostDetailDialog({
       return "";
     }
 
+    const plainContent = extractTextFromFeedbackContent(post.content);
+
     return [
       `# ${post.title}`,
       "",
-      post.content,
+      plainContent,
       "",
       `- Status: ${post.statusLabel}`,
       `- Board: ${post.boardName}`,
       `- Date: ${createdLabel}`,
     ].join("\n");
   }, [createdLabel, post]);
+
+  const contentHtml = useMemo(() => {
+    if (!post) {
+      return "";
+    }
+
+    return normalizeFeedbackContentToHtml(post.content);
+  }, [post]);
 
   function getPageUrl() {
     if (typeof window === "undefined") {
@@ -188,9 +201,12 @@ export function PublicFeedbackPostDetailDialog({
                       </DropdownMenu>
                     </div>
                   </div>
-                  <DialogDescription className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-base leading-relaxed text-slate-800">
-                    {post.content}
-                  </DialogDescription>
+                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-base leading-relaxed text-slate-800">
+                    <div
+                      className="[&_a]:text-indigo-700 [&_a]:underline [&_img]:my-3 [&_img]:max-h-72 [&_img]:rounded-lg [&_img]:border [&_img]:border-slate-200 [&_li]:ml-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_video]:my-3 [&_video]:max-h-72 [&_video]:rounded-lg [&_video]:border [&_video]:border-slate-200"
+                      dangerouslySetInnerHTML={{ __html: contentHtml }}
+                    />
+                  </div>
                 </DialogHeader>
 
                 {!isAuthenticated ? (
@@ -257,7 +273,7 @@ export function PublicFeedbackPostDetailDialog({
                         postId={post.id}
                         isAuthenticated={isAuthenticated}
                         onRequireAuth={onRequireAuth}
-                        enabled={open}
+                        enabled={open && tab === "comments"}
                       />
                     </div>
                   ) : (
