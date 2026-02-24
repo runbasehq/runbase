@@ -1,13 +1,8 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/lib/auth";
 import { createPageMetadata } from "@/lib/seo";
-import { protocol, rootDomain } from "@/lib/utils";
-import { getFirstWorkspaceMembershipForUser } from "@/lib/workspaces";
 import { normalizeCompanyName } from "~/workspace/schemas/create-workspace";
-import { OnboardingForm } from "~/workspace/components/onboarding-form";
 
 export const metadata: Metadata = createPageMetadata({
   title: "Workspace Onboarding",
@@ -47,48 +42,16 @@ export default async function OnboardingPage({
   const allowExistingMembership =
     allowExistingMembershipRaw === "1" ||
     allowExistingMembershipRaw.toLowerCase() === "true";
+  const redirectParams = new URLSearchParams();
 
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user) {
-    const nextParams = new URLSearchParams();
-
-    if (companyName) {
-      nextParams.set("companyName", companyName);
-    }
-
-    if (allowExistingMembership) {
-      nextParams.set("allowExistingMembership", "1");
-    }
-
-    const nextPath = nextParams.size
-      ? `/onboarding?${nextParams.toString()}`
-      : "/onboarding";
-
-    const signInSearchParams = new URLSearchParams({ next: nextPath });
-    if (companyName) {
-      signInSearchParams.set("companyName", companyName);
-    }
-
-    redirect(`/sign-in?${signInSearchParams.toString()}`);
+  if (allowExistingMembership) {
+    redirectParams.set("allowExistingMembership", "1");
   }
 
-  const existingMembership = await getFirstWorkspaceMembershipForUser(
-    session.user.id,
-  );
-
-  if (!allowExistingMembership && existingMembership?.workspaceSlug) {
-    redirect(
-      `${protocol}://${existingMembership.workspaceSlug}.${rootDomain}/dashboard`,
-    );
+  if (companyName) {
+    redirectParams.set("companyName", companyName);
   }
 
-  return (
-    <OnboardingForm
-      initialCompanyName={companyName}
-      allowExistingMembership={allowExistingMembership}
-    />
-  );
+  const queryString = redirectParams.toString();
+  redirect(queryString ? `/sign-up?${queryString}` : "/sign-up");
 }

@@ -43,24 +43,15 @@ export async function createWorkspaceAction(
   });
 
   if (!session?.user) {
-    let nextPath = "/onboarding";
+    const signUpParams = new URLSearchParams({
+      allowExistingMembership: "1",
+    });
 
-    if (allowExistingMembership) {
-      const signUpParams = new URLSearchParams();
-      signUpParams.set("allowExistingMembership", "1");
-      if (normalizedCompanyName) {
-        signUpParams.set("companyName", normalizedCompanyName);
-      }
-      nextPath = `/sign-up?${signUpParams.toString()}`;
-    } else {
-      const nextParams = new URLSearchParams();
-      if (normalizedCompanyName) {
-        nextParams.set("companyName", normalizedCompanyName);
-      }
-      nextPath = nextParams.size
-        ? `/onboarding?${nextParams.toString()}`
-        : "/onboarding";
+    if (normalizedCompanyName) {
+      signUpParams.set("companyName", normalizedCompanyName);
     }
+
+    const nextPath = `/sign-up?${signUpParams.toString()}`;
 
     const signInSearchParams = new URLSearchParams({ next: nextPath });
 

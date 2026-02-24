@@ -60,8 +60,8 @@ export default async function SignInPage({
     }
 
     const onboardingPath = companyName
-      ? `/onboarding?companyName=${encodeURIComponent(companyName)}`
-      : "/onboarding";
+      ? `/sign-up?allowExistingMembership=1&companyName=${encodeURIComponent(companyName)}`
+      : "/sign-up?allowExistingMembership=1";
 
     redirect(onboardingPath);
   }

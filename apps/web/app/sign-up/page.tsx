@@ -69,21 +69,15 @@ export default async function SignUpPage({
       );
     }
 
-    const onboardingPath = companyName
-      ? `/onboarding?companyName=${encodeURIComponent(companyName)}`
-      : "/onboarding";
+    const continueParams = new URLSearchParams({
+      allowExistingMembership: "1",
+    });
 
     if (companyName) {
-      const completeParams = new URLSearchParams({
-        companyName,
-        feedbackAccess: "public",
-        primaryGoal: "capture_manage_feedback",
-      });
-
-      redirect(`/onboarding/complete?${completeParams.toString()}`);
+      continueParams.set("companyName", companyName);
     }
 
-    redirect(onboardingPath);
+    redirect(`/sign-up?${continueParams.toString()}`);
   }
 
   const githubAuthEnabled = Boolean(

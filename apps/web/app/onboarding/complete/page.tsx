@@ -173,7 +173,7 @@ export default async function OnboardingCompletePage({
     if (allowExistingMembership) {
       redirect("/sign-up?allowExistingMembership=1");
     }
-    redirect("/onboarding");
+    redirect("/sign-up");
   }
 
   const result = await createWorkspaceForUser({
@@ -193,7 +193,14 @@ export default async function OnboardingCompletePage({
       }
       redirect(`/sign-up?${retryParams.toString()}`);
     }
-    redirect("/onboarding");
+    const retryParams = new URLSearchParams();
+    if (companyName) {
+      retryParams.set("companyName", companyName);
+    }
+    const retryPath = retryParams.size
+      ? `/sign-up?${retryParams.toString()}`
+      : "/sign-up";
+    redirect(retryPath);
   }
 
   const completeParams = new URLSearchParams({
