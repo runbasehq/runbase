@@ -1,77 +1,51 @@
-"use client";
+import {
+  getSafeServerAuthRedirect,
+  getSafeServerOrigin,
+} from "~/auth/lib/safe-auth-redirect.server";
 
-import { useEffect } from "react";
-import { getSafeOrigin, isAbsoluteUrl } from "~/auth/lib/url";
+import { OAuthLoadingClient } from "./oauth-loading-client";
 
-function getSafeClientTarget(value: string | null) {
-  if (!value) {
-    return null;
+type OAuthLoadingSearchParams = {
+  returnTo?: string | string[];
+  next?: string | string[];
+  openerOrigin?: string | string[];
+  type?: string | string[];
+  oid?: string | string[];
+};
+
+function readSingleParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
   }
 
-  if (value.startsWith("/")) {
-    return value.startsWith("//") ? null : value;
-  }
-
-  try {
-    const parsed = new URL(value);
-    if (!isAbsoluteUrl(parsed.toString())) {
-      return null;
-    }
-
-    return parsed.toString();
-  } catch {
-    return null;
-  }
+  return value ?? null;
 }
 
-export default function OAuthLoadingPage() {
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const safeReturnTo =
-      getSafeClientTarget(params.get("returnTo")) ||
-      getSafeClientTarget(params.get("next")) ||
-      "/";
-    const safeOpenerOrigin = getSafeOrigin(params.get("openerOrigin"));
-    const type = params.get("type");
-    const oid = params.get("oid");
+export default async function OAuthLoadingPage({
+  searchParams,
+}: {
+  searchParams: Promise<OAuthLoadingSearchParams>;
+}) {
+  const resolvedSearchParams = await searchParams;
 
-    if (window.opener && !window.opener.closed && safeOpenerOrigin) {
-      window.opener.postMessage(
-        {
-          type: "runbase-auth-complete",
-          refreshOnly: true,
-          returnTo: safeReturnTo,
-          ...(type ? { authType: type } : {}),
-          ...(oid ? { oid } : {}),
-        },
-        safeOpenerOrigin,
-      );
+  const rawReturnTo = readSingleParam(resolvedSearchParams.returnTo);
+  const rawNext = readSingleParam(resolvedSearchParams.next);
+  const rawOpenerOrigin = readSingleParam(resolvedSearchParams.openerOrigin);
+  const authType = readSingleParam(resolvedSearchParams.type);
+  const oid = readSingleParam(resolvedSearchParams.oid);
 
-      window.close();
+  const safeReturnTo =
+    (await getSafeServerAuthRedirect(rawReturnTo)) ||
+    (await getSafeServerAuthRedirect(rawNext)) ||
+    "/";
+  const safeOpenerOrigin = await getSafeServerOrigin(rawOpenerOrigin);
 
-      window.setTimeout(() => {
-        if (window.closed) {
-          return;
-        }
-
-        if (isAbsoluteUrl(safeReturnTo)) {
-          window.location.assign(safeReturnTo);
-          return;
-        }
-
-        window.location.replace(safeReturnTo);
-      }, 150);
-
-      return;
-    }
-
-    if (isAbsoluteUrl(safeReturnTo)) {
-      window.location.assign(safeReturnTo);
-      return;
-    }
-
-    window.location.replace(safeReturnTo);
-  }, []);
-
-  return <main className="min-h-screen bg-background" aria-hidden />;
+  return (
+    <OAuthLoadingClient
+      returnTo={safeReturnTo}
+      openerOrigin={safeOpenerOrigin}
+      authType={authType}
+      oid={oid}
+    />
+  );
 }

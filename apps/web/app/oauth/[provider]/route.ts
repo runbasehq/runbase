@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getAuthRootOrigin } from "~/auth/lib/get-auth-root-origin";
 import {
+  getPreferredWorkspaceOrigin,
   getSafeServerAuthRedirect,
   getSafeServerOrigin,
+  getWorkspaceSlugFromAllowedOrigin,
 } from "~/auth/lib/safe-auth-redirect.server";
-import { getSafeAuthRedirect } from "~/auth/lib/safe-auth-redirect";
 import { isAbsoluteUrl } from "~/auth/lib/url";
 
 type SocialProvider = "google" | "github";
@@ -63,11 +64,36 @@ export async function GET(
 
   const safeOpenerOrigin = await getSafeServerOrigin(openerOriginParam);
   const safeReturnTo = await getSafeServerAuthRedirect(returnToParam);
-  const safeNext = getSafeAuthRedirect(nextParam);
+  const safeNext = await getSafeServerAuthRedirect(nextParam);
   const effectiveReturnTo = safeReturnTo || safeNext || "/";
+
+  const openerWorkspaceSlug =
+    await getWorkspaceSlugFromAllowedOrigin(safeOpenerOrigin);
+  const targetWorkspaceSlug =
+    openerWorkspaceSlug ||
+    (isAbsoluteUrl(effectiveReturnTo)
+      ? await getWorkspaceSlugFromAllowedOrigin(effectiveReturnTo)
+      : null);
+  const preferredWorkspaceOrigin = targetWorkspaceSlug
+    ? await getPreferredWorkspaceOrigin(targetWorkspaceSlug)
+    : null;
+
   const absoluteReturnTo = isAbsoluteUrl(effectiveReturnTo)
-    ? effectiveReturnTo
-    : new URL(effectiveReturnTo, safeOpenerOrigin || authRootOrigin).toString();
+    ? (() => {
+        const parsed = new URL(effectiveReturnTo);
+        if (!preferredWorkspaceOrigin) {
+          return parsed.toString();
+        }
+
+        return new URL(
+          `${parsed.pathname}${parsed.search}${parsed.hash}`,
+          preferredWorkspaceOrigin,
+        ).toString();
+      })()
+    : new URL(
+        effectiveReturnTo,
+        preferredWorkspaceOrigin || safeOpenerOrigin || authRootOrigin,
+      ).toString();
 
   const callbackUrl = new URL("/oauth/loading", authRootOrigin);
   callbackUrl.searchParams.set("returnTo", absoluteReturnTo);

@@ -40,6 +40,34 @@ async function readWorkspaceSlugFromDatabase(hostname: string) {
   return row?.workspaceSlug ?? null;
 }
 
+export async function getPreferredVerifiedDomainForWorkspace(
+  rawWorkspaceSlug: string,
+) {
+  const workspaceSlug = rawWorkspaceSlug.trim().toLowerCase();
+  if (!workspaceSlug) {
+    return null;
+  }
+
+  try {
+    const [row] = await db
+      .select({ domain: workspaceDomain.domain })
+      .from(workspaceDomain)
+      .innerJoin(workspace, eq(workspaceDomain.workspaceId, workspace.id))
+      .where(
+        and(
+          eq(workspace.slug, workspaceSlug),
+          eq(workspaceDomain.verificationStatus, "verified"),
+        ),
+      )
+      .orderBy(workspaceDomain.createdAt)
+      .limit(1);
+
+    return row?.domain ? normalizeHostname(row.domain) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getVerifiedWorkspaceSlugForDomain(rawHostname: string) {
   const hostname = normalizeHostname(rawHostname);
   if (!hostname) {

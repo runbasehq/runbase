@@ -1,7 +1,12 @@
 import "server-only";
 
-import { rootDomain } from "@/lib/utils";
-import { isVerifiedCustomDomain } from "~/domains/lib/verified-domain-lookup.server";
+import { extractSubdomainFromHost } from "@/lib/subdomains";
+import { protocol, rootDomain } from "@/lib/utils";
+import {
+  getPreferredVerifiedDomainForWorkspace,
+  getVerifiedWorkspaceSlugForDomain,
+  isVerifiedCustomDomain,
+} from "~/domains/lib/verified-domain-lookup.server";
 
 function isHttpUrl(protocol: string) {
   return protocol === "http:" || protocol === "https:";
@@ -9,6 +14,12 @@ function isHttpUrl(protocol: string) {
 
 function getRootHostname() {
   return rootDomain.split(":")[0]?.toLowerCase() || "";
+}
+
+function buildWorkspaceSubdomainOrigin(workspaceSlug: string) {
+  const trimmedSlug = workspaceSlug.trim().toLowerCase();
+  const trimmedRootDomain = rootDomain.trim().toLowerCase();
+  return `${protocol}://${trimmedSlug}.${trimmedRootDomain}`;
 }
 
 function isRootHostname(hostname: string) {
@@ -72,4 +83,41 @@ export async function getSafeServerOrigin(origin: string | null | undefined) {
   } catch {
     return null;
   }
+}
+
+export async function getWorkspaceSlugFromAllowedOrigin(
+  origin: string | null | undefined,
+) {
+  const safeOrigin = await getSafeServerOrigin(origin);
+  if (!safeOrigin) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(safeOrigin);
+    const hostname = parsed.hostname.toLowerCase();
+    const subdomain = extractSubdomainFromHost(hostname);
+
+    if (subdomain) {
+      return subdomain;
+    }
+
+    return getVerifiedWorkspaceSlugForDomain(hostname);
+  } catch {
+    return null;
+  }
+}
+
+export async function getPreferredWorkspaceOrigin(workspaceSlug: string) {
+  if (process.env.NODE_ENV !== "production") {
+    return buildWorkspaceSubdomainOrigin(workspaceSlug);
+  }
+
+  const preferredCustomDomain =
+    await getPreferredVerifiedDomainForWorkspace(workspaceSlug);
+  if (preferredCustomDomain) {
+    return `${protocol}://${preferredCustomDomain}`;
+  }
+
+  return buildWorkspaceSubdomainOrigin(workspaceSlug);
 }
