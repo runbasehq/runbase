@@ -20,6 +20,17 @@ export function OAuthLoadingClient({
   oid,
 }: OAuthLoadingClientProps) {
   useEffect(() => {
+    if (isAbsoluteUrl(returnTo)) {
+      try {
+        if (new URL(returnTo).origin !== window.location.origin) {
+          window.location.replace(returnTo);
+          return;
+        }
+      } catch {
+        // ignore and continue with normal flow
+      }
+    }
+
     if (window.opener && !window.opener.closed && openerOrigin) {
       window.opener.postMessage(
         {
