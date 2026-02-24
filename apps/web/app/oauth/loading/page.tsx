@@ -1,21 +1,24 @@
 "use client";
 
 import { useEffect } from "react";
+import { getSafeOrigin, isAbsoluteUrl } from "~/auth/lib/url";
 
-import { getSafeAuthRedirect } from "~/auth/lib/safe-auth-redirect";
-
-function isAbsoluteUrl(value: string) {
-  return value.startsWith("http://") || value.startsWith("https://");
-}
-
-function getSafeOrigin(value: string | null) {
-  if (!value || !isAbsoluteUrl(value)) {
+function getSafeClientTarget(value: string | null) {
+  if (!value) {
     return null;
+  }
+
+  if (value.startsWith("/")) {
+    return value.startsWith("//") ? null : value;
   }
 
   try {
     const parsed = new URL(value);
-    return getSafeAuthRedirect(`${parsed.origin}/`) ? parsed.origin : null;
+    if (!isAbsoluteUrl(parsed.toString())) {
+      return null;
+    }
+
+    return parsed.toString();
   } catch {
     return null;
   }
@@ -25,10 +28,8 @@ export default function OAuthLoadingPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const safeReturnTo =
-      getSafeAuthRedirect(params.get("returnTo"), {
-        allowExternal: true,
-      }) ||
-      getSafeAuthRedirect(params.get("next")) ||
+      getSafeClientTarget(params.get("returnTo")) ||
+      getSafeClientTarget(params.get("next")) ||
       "/";
     const safeOpenerOrigin = getSafeOrigin(params.get("openerOrigin"));
     const type = params.get("type");

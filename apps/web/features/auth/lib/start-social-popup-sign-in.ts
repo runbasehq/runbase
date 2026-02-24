@@ -60,15 +60,16 @@ export async function startSocialPopupSignIn({
 }: StartSocialPopupSignInInput): Promise<StartSocialPopupSignInResult> {
   const safeNext = getSafeAuthRedirect(nextTarget) || "/";
   const absoluteNext = toAbsoluteUrl(safeNext);
-  const safeReturnTo = getSafeAuthRedirect(returnTo, {
-    allowExternal: true,
-  });
+  const sanitizedReturnTo =
+    typeof returnTo === "string" && returnTo.trim().length > 0
+      ? returnTo.trim()
+      : null;
   const authRootOrigin = getAuthRootOrigin();
   const callbackUrl = new URL("/oauth/loading", authRootOrigin);
   callbackUrl.searchParams.set("next", absoluteNext);
   callbackUrl.searchParams.set("openerOrigin", window.location.origin);
-  if (safeReturnTo) {
-    callbackUrl.searchParams.set("returnTo", safeReturnTo);
+  if (sanitizedReturnTo) {
+    callbackUrl.searchParams.set("returnTo", sanitizedReturnTo);
   }
   if (type) {
     callbackUrl.searchParams.set("type", type);

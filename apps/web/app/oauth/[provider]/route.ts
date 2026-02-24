@@ -1,29 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAuthRootOrigin } from "~/auth/lib/get-auth-root-origin";
+import {
+  getSafeServerAuthRedirect,
+  getSafeServerOrigin,
+} from "~/auth/lib/safe-auth-redirect.server";
 import { getSafeAuthRedirect } from "~/auth/lib/safe-auth-redirect";
+import { isAbsoluteUrl } from "~/auth/lib/url";
 
 type SocialProvider = "google" | "github";
 
 function isSocialProvider(value: string): value is SocialProvider {
   return value === "google" || value === "github";
-}
-
-function isAbsoluteUrl(value: string) {
-  return value.startsWith("http://") || value.startsWith("https://");
-}
-
-function getSafeOrigin(value: string | null) {
-  if (!value || !isAbsoluteUrl(value)) {
-    return null;
-  }
-
-  try {
-    const parsed = new URL(value);
-    return getSafeAuthRedirect(`${parsed.origin}/`) ? parsed.origin : null;
-  } catch {
-    return null;
-  }
 }
 
 function toAbsoluteProviderUrl(value: string, authRootOrigin: string) {
@@ -73,10 +61,8 @@ export async function GET(
   const oidParam = request.nextUrl.searchParams.get("oid");
   const openerOriginParam = request.nextUrl.searchParams.get("openerOrigin");
 
-  const safeOpenerOrigin = getSafeOrigin(openerOriginParam);
-  const safeReturnTo = getSafeAuthRedirect(returnToParam, {
-    allowExternal: true,
-  });
+  const safeOpenerOrigin = await getSafeServerOrigin(openerOriginParam);
+  const safeReturnTo = await getSafeServerAuthRedirect(returnToParam);
   const safeNext = getSafeAuthRedirect(nextParam);
   const effectiveReturnTo = safeReturnTo || safeNext || "/";
   const absoluteReturnTo = isAbsoluteUrl(effectiveReturnTo)

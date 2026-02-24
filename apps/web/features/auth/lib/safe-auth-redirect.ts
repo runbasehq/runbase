@@ -1,31 +1,6 @@
 import { rootDomain } from "@/lib/utils";
 
-interface SafeAuthRedirectOptions {
-  allowExternal?: boolean;
-}
-
-function getExternalHostAllowlist() {
-  const raw = process.env.NEXT_PUBLIC_AUTH_RETURN_TO_ALLOWLIST || "";
-
-  return raw
-    .split(",")
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-function isHostAllowedByPattern(hostname: string, pattern: string) {
-  if (pattern.startsWith("*.")) {
-    const suffix = pattern.slice(2);
-    return suffix.length > 0 && hostname.endsWith(`.${suffix}`);
-  }
-
-  return hostname === pattern;
-}
-
-export function getSafeAuthRedirect(
-  target: string | null | undefined,
-  options?: SafeAuthRedirectOptions,
-) {
+export function getSafeAuthRedirect(target: string | null | undefined) {
   if (!target) {
     return null;
   }
@@ -53,18 +28,7 @@ export function getSafeAuthRedirect(
       return parsed.toString();
     }
 
-    if (!options?.allowExternal) {
-      return null;
-    }
-
-    const allowlist = getExternalHostAllowlist();
-    if (
-      !allowlist.some((pattern) => isHostAllowedByPattern(hostname, pattern))
-    ) {
-      return null;
-    }
-
-    return parsed.toString();
+    return null;
   } catch {
     return null;
   }

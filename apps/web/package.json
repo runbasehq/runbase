@@ -12,6 +12,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
+    "domains:seed-cache": "pnpm exec tsx ./scripts/seed-domain-cache.ts",
     "polar:bootstrap-products": "pnpm exec tsx ./scripts/polar-bootstrap-products.ts",
     "polar:setup-webhook": "pnpm exec tsx ./scripts/polar-setup-webhook.ts"
   },

@@ -13,11 +13,8 @@ import { type AuthMode, validateSignInInput } from "~/auth/schemas/sign-in";
 import { getAuthRootOrigin } from "~/auth/lib/get-auth-root-origin";
 import { getSafeAuthRedirect } from "~/auth/lib/safe-auth-redirect";
 import { startSocialPopupSignIn } from "~/auth/lib/start-social-popup-sign-in";
+import { isAbsoluteUrl } from "~/auth/lib/url";
 import { normalizeCompanyName } from "~/workspace/schemas/create-workspace";
-
-function isAbsoluteUrl(path: string) {
-  return path.startsWith("http://") || path.startsWith("https://");
-}
 
 function buildAuthHref({
   pathname,
