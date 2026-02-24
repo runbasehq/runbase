@@ -12,6 +12,10 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(`${protocol}://${rootDomain}`);
     }
 
+    if (pathname.startsWith("/auth/popup-callback")) {
+      return NextResponse.next();
+    }
+
     if (
       pathname.startsWith("/sign-in") ||
       pathname.startsWith("/sign-up") ||
@@ -25,6 +29,13 @@ export async function proxy(request: NextRequest) {
         redirectUrl.port = rootDomain.split(":")[1] || redirectUrl.port;
       } else {
         redirectUrl.port = "";
+      }
+
+      if (
+        pathname.startsWith("/sign-in") &&
+        !redirectUrl.searchParams.has("next")
+      ) {
+        redirectUrl.searchParams.set("next", request.url);
       }
 
       return NextResponse.redirect(redirectUrl);

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -9,39 +9,10 @@ import { RunbaseLogo } from "@/components/logos/runbase-logo";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
-import { rootDomain } from "@/lib/utils";
 import { type AuthMode, validateSignInInput } from "~/auth/schemas/sign-in";
+import { getSafeAuthRedirect } from "~/auth/lib/safe-auth-redirect";
+import { startSocialPopupSignIn } from "~/auth/lib/start-social-popup-sign-in";
 import { normalizeCompanyName } from "~/workspace/schemas/create-workspace";
-
-function toSafeRedirect(target: string | null): string {
-  if (!target) {
-    return "/sign-up";
-  }
-
-  if (target.startsWith("/")) {
-    if (target.startsWith("//")) {
-      return "/sign-up";
-    }
-
-    return target;
-  }
-
-  try {
-    const parsedUrl = new URL(target);
-    const rootHostname = rootDomain.split(":")[0]?.toLowerCase() || "";
-    const hostname = parsedUrl.hostname.toLowerCase();
-    const isRootDomainHost =
-      hostname === rootHostname || hostname.endsWith(`.${rootHostname}`);
-
-    if (isRootDomainHost) {
-      return parsedUrl.toString();
-    }
-  } catch {
-    return "/sign-up";
-  }
-
-  return "/sign-up";
-}
 
 function isAbsoluteUrl(path: string) {
   return path.startsWith("http://") || path.startsWith("https://");
@@ -83,12 +54,16 @@ export function SignIn({
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = useMemo(
-    () => toSafeRedirect(searchParams.get("next")),
+    () => getSafeAuthRedirect(searchParams.get("next")) || "/sign-up",
     [searchParams],
   );
   const companyNameFromQuery = useMemo(
     () => normalizeCompanyName(searchParams.get("companyName") ?? ""),
     [searchParams],
+  );
+  const lastLoginMethod = useMemo(
+    () => authClient.getLastUsedLoginMethod?.() ?? null,
+    [],
   );
 
   const [name, setName] = useState("");
@@ -99,6 +74,38 @@ export function SignIn({
   const [isGooglePending, setIsGooglePending] = useState(false);
   const [isGithubPending, setIsGithubPending] = useState(false);
   const isActionPending = isPending || isGooglePending || isGithubPending;
+
+  useEffect(() => {
+    function handleAuthComplete(event: MessageEvent) {
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
+      const payload = event.data as { type?: string; next?: string } | null;
+      if (payload?.type !== "runbase-auth-complete") {
+        return;
+      }
+
+      const nextTarget =
+        getSafeAuthRedirect(
+          typeof payload.next === "string" ? payload.next : null,
+        ) || nextPath;
+
+      setIsGooglePending(false);
+      setIsGithubPending(false);
+
+      if (isAbsoluteUrl(nextTarget)) {
+        window.location.assign(nextTarget);
+        return;
+      }
+
+      router.replace(nextTarget);
+      router.refresh();
+    }
+
+    window.addEventListener("message", handleAuthComplete);
+    return () => window.removeEventListener("message", handleAuthComplete);
+  }, [nextPath, router]);
 
   const signInHref = useMemo(
     () =>
@@ -118,6 +125,8 @@ export function SignIn({
       }),
     [companyNameFromQuery, nextPath],
   );
+  const lastUsedBadgeClassName =
+    "rounded-full bg-primary px-1.5 py-0.5 text-[10px] leading-none text-black/70";
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -192,30 +201,36 @@ export function SignIn({
     setError(null);
     setIsGooglePending(true);
 
-    const { error: socialSignInError } = await authClient.signIn.social({
+    const result = await startSocialPopupSignIn({
       provider: "google",
-      callbackURL: nextPath,
+      nextTarget: nextPath,
     });
 
-    if (socialSignInError) {
-      setError(socialSignInError.message || "Unable to sign in with Google");
+    if (result.error) {
+      setError(result.error || "Unable to sign in with Google");
       setIsGooglePending(false);
+      return;
     }
+
+    setIsGooglePending(false);
   }
 
   async function handleGithubSignIn() {
     setError(null);
     setIsGithubPending(true);
 
-    const { error: socialSignInError } = await authClient.signIn.social({
+    const result = await startSocialPopupSignIn({
       provider: "github",
-      callbackURL: nextPath,
+      nextTarget: nextPath,
     });
 
-    if (socialSignInError) {
-      setError(socialSignInError.message || "Unable to sign in with GitHub");
+    if (result.error) {
+      setError(result.error || "Unable to sign in with GitHub");
       setIsGithubPending(false);
+      return;
     }
+
+    setIsGithubPending(false);
   }
 
   if (mode === "sign-up") {
@@ -320,6 +335,9 @@ export function SignIn({
             className="h-4 w-4"
           />
           {isGooglePending ? "Redirecting..." : "Google"}
+          {lastLoginMethod === "google" ? (
+            <span className={lastUsedBadgeClassName}>Last used</span>
+          ) : null}
         </button>
         <button
           type="button"
@@ -336,6 +354,9 @@ export function SignIn({
             className="h-5 w-5"
           />
           GitHub
+          {lastLoginMethod === "github" ? (
+            <span className={lastUsedBadgeClassName}>Last used</span>
+          ) : null}
         </button>
       </div>
 

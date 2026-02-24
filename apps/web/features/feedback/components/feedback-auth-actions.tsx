@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   AlertDialog,
@@ -14,7 +14,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { FancyButton } from "@/components/ui/fancy-button";
-import { authClient } from "@/lib/auth-client";
+import { getSafeAuthRedirect } from "~/auth/lib/safe-auth-redirect";
+import { startSocialPopupSignIn } from "~/auth/lib/start-social-popup-sign-in";
 import type {
   FeedbackBoardItem,
   FeedbackStatusItem,
@@ -45,14 +46,38 @@ export function FeedbackAuthActions({
 }: FeedbackAuthActionsProps) {
   const [isGithubPending, setIsGithubPending] = useState(false);
 
+  useEffect(() => {
+    function handleAuthComplete(event: MessageEvent) {
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
+      const payload = event.data as { type?: string; next?: string } | null;
+      if (payload?.type !== "runbase-auth-complete") {
+        return;
+      }
+
+      const nextTarget =
+        getSafeAuthRedirect(
+          typeof payload.next === "string" ? payload.next : null,
+        ) || callbackUrl;
+
+      setIsGithubPending(false);
+      window.location.assign(nextTarget);
+    }
+
+    window.addEventListener("message", handleAuthComplete);
+    return () => window.removeEventListener("message", handleAuthComplete);
+  }, [callbackUrl]);
+
   async function handleGithubSignIn() {
     setIsGithubPending(true);
-    const { error } = await authClient.signIn.social({
+    const result = await startSocialPopupSignIn({
       provider: "github",
-      callbackURL: callbackUrl,
+      nextTarget: callbackUrl,
     });
 
-    if (error) {
+    if (result.error) {
       setIsGithubPending(false);
     }
   }
