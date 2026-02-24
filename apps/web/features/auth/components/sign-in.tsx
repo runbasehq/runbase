@@ -10,6 +10,7 @@ import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import { type AuthMode, validateSignInInput } from "~/auth/schemas/sign-in";
+import { getAuthRootOrigin } from "~/auth/lib/get-auth-root-origin";
 import { getSafeAuthRedirect } from "~/auth/lib/safe-auth-redirect";
 import { startSocialPopupSignIn } from "~/auth/lib/start-social-popup-sign-in";
 import { normalizeCompanyName } from "~/workspace/schemas/create-workspace";
@@ -71,41 +72,27 @@ export function SignIn({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
-  const [isGooglePending, setIsGooglePending] = useState(false);
-  const [isGithubPending, setIsGithubPending] = useState(false);
-  const isActionPending = isPending || isGooglePending || isGithubPending;
+  const isActionPending = isPending;
 
   useEffect(() => {
+    const authRootOrigin = getAuthRootOrigin();
+
     function handleAuthComplete(event: MessageEvent) {
-      if (event.origin !== window.location.origin) {
+      if (event.origin !== authRootOrigin) {
         return;
       }
 
-      const payload = event.data as { type?: string; next?: string } | null;
+      const payload = event.data as { type?: string } | null;
       if (payload?.type !== "runbase-auth-complete") {
         return;
       }
 
-      const nextTarget =
-        getSafeAuthRedirect(
-          typeof payload.next === "string" ? payload.next : null,
-        ) || nextPath;
-
-      setIsGooglePending(false);
-      setIsGithubPending(false);
-
-      if (isAbsoluteUrl(nextTarget)) {
-        window.location.assign(nextTarget);
-        return;
-      }
-
-      router.replace(nextTarget);
       router.refresh();
     }
 
     window.addEventListener("message", handleAuthComplete);
     return () => window.removeEventListener("message", handleAuthComplete);
-  }, [nextPath, router]);
+  }, [router]);
 
   const signInHref = useMemo(
     () =>
@@ -199,7 +186,6 @@ export function SignIn({
 
   async function handleGoogleSignIn() {
     setError(null);
-    setIsGooglePending(true);
 
     const result = await startSocialPopupSignIn({
       provider: "google",
@@ -208,16 +194,11 @@ export function SignIn({
 
     if (result.error) {
       setError(result.error || "Unable to sign in with Google");
-      setIsGooglePending(false);
-      return;
     }
-
-    setIsGooglePending(false);
   }
 
   async function handleGithubSignIn() {
     setError(null);
-    setIsGithubPending(true);
 
     const result = await startSocialPopupSignIn({
       provider: "github",
@@ -226,11 +207,7 @@ export function SignIn({
 
     if (result.error) {
       setError(result.error || "Unable to sign in with GitHub");
-      setIsGithubPending(false);
-      return;
     }
-
-    setIsGithubPending(false);
   }
 
   if (mode === "sign-up") {
@@ -334,7 +311,7 @@ export function SignIn({
             height={16}
             className="h-4 w-4"
           />
-          {isGooglePending ? "Redirecting..." : "Google"}
+          Google
           {lastLoginMethod === "google" ? (
             <span className={lastUsedBadgeClassName}>Last used</span>
           ) : null}

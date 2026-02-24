@@ -12,11 +12,8 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(`${protocol}://${rootDomain}`);
     }
 
-    if (pathname.startsWith("/auth/popup-callback")) {
-      return NextResponse.next();
-    }
-
     if (
+      pathname.startsWith("/oauth") ||
       pathname.startsWith("/sign-in") ||
       pathname.startsWith("/sign-up") ||
       pathname.startsWith("/onboarding") ||
