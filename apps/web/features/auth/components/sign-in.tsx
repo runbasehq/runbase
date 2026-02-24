@@ -74,9 +74,10 @@ export function SignIn({
 
   useEffect(() => {
     const authRootOrigin = getAuthRootOrigin();
+    const trustedOrigins = new Set([window.location.origin, authRootOrigin]);
 
     function handleAuthComplete(event: MessageEvent) {
-      if (event.origin !== authRootOrigin) {
+      if (!trustedOrigins.has(event.origin)) {
         return;
       }
 
