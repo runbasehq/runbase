@@ -60,6 +60,7 @@ export async function GET(
   const returnToParam = request.nextUrl.searchParams.get("returnTo");
   const typeParam = request.nextUrl.searchParams.get("type");
   const oidParam = request.nextUrl.searchParams.get("oid");
+  const authStateParam = request.nextUrl.searchParams.get("authState");
   const openerOriginParam = request.nextUrl.searchParams.get("openerOrigin");
 
   const safeOpenerOrigin = await getSafeServerOrigin(openerOriginParam);
@@ -104,6 +105,9 @@ export async function GET(
   if (oidParam) {
     callbackUrl.searchParams.set("oid", oidParam);
   }
+  if (authStateParam) {
+    callbackUrl.searchParams.set("authState", authStateParam);
+  }
   if (safeOpenerOrigin) {
     callbackUrl.searchParams.set("openerOrigin", safeOpenerOrigin);
   }
@@ -139,20 +143,35 @@ export async function GET(
   const response = NextResponse.redirect(
     toAbsoluteProviderUrl(providerUrl, authRootOrigin),
   );
-  const setCookies = (
-    startResponse.headers as Headers & {
-      getSetCookie?: () => string[];
-    }
-  ).getSetCookie?.();
+  let setCookies =
+    (
+      startResponse.headers as Headers & {
+        getSetCookie?: () => string[];
+      }
+    ).getSetCookie?.() || [];
 
-  if (setCookies?.length) {
-    for (const cookie of setCookies) {
-      response.headers.append("set-cookie", cookie);
+  if (!setCookies.length) {
+    const rawCookies = (
+      startResponse.headers as Headers & {
+        raw?: () => Record<string, string[] | undefined>;
+      }
+    ).raw?.()["set-cookie"];
+
+    if (Array.isArray(rawCookies) && rawCookies.length) {
+      setCookies = rawCookies;
     }
-  } else {
+  }
+
+  if (!setCookies.length) {
     const rawSetCookie = startResponse.headers.get("set-cookie");
     if (rawSetCookie) {
-      response.headers.set("set-cookie", rawSetCookie);
+      setCookies = [rawSetCookie];
+    }
+  }
+
+  if (setCookies.length) {
+    for (const cookie of setCookies) {
+      response.headers.append("set-cookie", cookie);
     }
   }
 

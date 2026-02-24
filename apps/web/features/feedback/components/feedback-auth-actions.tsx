@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { getAuthRootOrigin } from "~/auth/lib/get-auth-root-origin";
+import { consumePendingPopupAuthState } from "~/auth/lib/popup-auth-state";
 import { startSocialPopupSignIn } from "~/auth/lib/start-social-popup-sign-in";
 import type {
   FeedbackBoardItem,
@@ -55,8 +56,16 @@ export function FeedbackAuthActions({
         return;
       }
 
-      const payload = event.data as { type?: string } | null;
-      if (payload?.type !== "runbase-auth-complete") {
+      const payload = event.data as {
+        type?: string;
+        refreshOnly?: boolean;
+        authState?: string;
+      } | null;
+      if (
+        payload?.type !== "runbase-auth-complete" ||
+        payload.refreshOnly !== true ||
+        !consumePendingPopupAuthState(payload.authState)
+      ) {
         return;
       }
 
