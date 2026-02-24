@@ -17,7 +17,21 @@
         "GITHUB_CLIENT_ID",
         "GITHUB_CLIENT_SECRET",
         "GOOGLE_CLIENT_ID",
-        "GOOGLE_CLIENT_SECRET"
+        "GOOGLE_CLIENT_SECRET",
+        "RESEND_API_KEY",
+        "TRUST_PROXY_HEADERS",
+        "RESEND_WELCOME_FROM_EMAIL_FRAN",
+        "RESEND_WELCOME_FROM_EMAIL_JERE",
+        "APP_URL",
+        "RESEND_FROM_EMAIL",
+        "POLAR_ENVIRONMENT",
+        "POLAR_ACCESS_TOKEN",
+        "POLAR_WEBHOOK_SECRET",
+        "POLAR_PRODUCT_ID_GROWTH_MONTHLY",
+        "POLAR_PRODUCT_ID_GROWTH_YEARLY",
+        "POLAR_PRODUCT_ID_PROFESSIONAL_MONTHLY",
+        "POLAR_PRODUCT_ID_PROFESSIONAL_YEARLY",
+        "POLAR_PRODUCT_ID_ENTERPRISE"
       ],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
