@@ -1,7 +1,9 @@
 "use client";
 
-import { authClient } from "@/lib/auth-client";
-
+import {
+  clearPendingPopupAuthState,
+  createPendingPopupAuthState,
+} from "./popup-auth-state";
 import { getSafeAuthRedirect } from "./safe-auth-redirect";
 import { getAuthRootOrigin } from "./get-auth-root-origin";
 
@@ -18,29 +20,6 @@ interface StartSocialPopupSignInInput {
 interface StartSocialPopupSignInResult {
   error: string | null;
   popupOpened: boolean;
-}
-
-function readSocialRedirectUrl(result: unknown) {
-  if (!result || typeof result !== "object") {
-    return null;
-  }
-
-  const root = result as { url?: unknown; data?: unknown };
-
-  if (typeof root.url === "string" && root.url.length > 0) {
-    return root.url;
-  }
-
-  if (!root.data || typeof root.data !== "object") {
-    return null;
-  }
-
-  const data = root.data as { url?: unknown };
-  if (typeof data.url === "string" && data.url.length > 0) {
-    return data.url;
-  }
-
-  return null;
 }
 
 function toAbsoluteUrl(path: string) {
@@ -65,17 +44,21 @@ export async function startSocialPopupSignIn({
       ? returnTo.trim()
       : null;
   const authRootOrigin = getAuthRootOrigin();
-  const callbackUrl = new URL("/oauth/loading", authRootOrigin);
-  callbackUrl.searchParams.set("next", absoluteNext);
-  callbackUrl.searchParams.set("openerOrigin", window.location.origin);
+  const authState = createPendingPopupAuthState();
+  const brokerUrl = new URL(`/oauth/${provider}`, authRootOrigin);
+  brokerUrl.searchParams.set("next", absoluteNext);
+  brokerUrl.searchParams.set("openerOrigin", window.location.origin);
+  if (authState) {
+    brokerUrl.searchParams.set("authState", authState);
+  }
   if (sanitizedReturnTo) {
-    callbackUrl.searchParams.set("returnTo", sanitizedReturnTo);
+    brokerUrl.searchParams.set("returnTo", sanitizedReturnTo);
   }
   if (type) {
-    callbackUrl.searchParams.set("type", type);
+    brokerUrl.searchParams.set("type", type);
   }
   if (oid) {
-    callbackUrl.searchParams.set("oid", oid);
+    brokerUrl.searchParams.set("oid", oid);
   }
 
   const popup = window.open(
@@ -84,31 +67,8 @@ export async function startSocialPopupSignIn({
     "popup,width=520,height=720,left=120,top=80",
   );
 
-  const result = await authClient.signIn.social({
-    provider,
-    callbackURL: callbackUrl.toString(),
-    disableRedirect: true,
-  });
-
-  if (result.error) {
-    popup?.close();
-    return {
-      error: result.error.message || `Unable to sign in with ${provider}`,
-      popupOpened: false,
-    };
-  }
-
-  const redirectUrl = readSocialRedirectUrl(result);
-  if (!redirectUrl) {
-    popup?.close();
-    return {
-      error: `Unable to start ${provider} sign in`,
-      popupOpened: false,
-    };
-  }
-
   if (popup) {
-    popup.location.href = redirectUrl;
+    popup.location.href = brokerUrl.toString();
     popup.focus();
     return {
       error: null,
@@ -116,6 +76,7 @@ export async function startSocialPopupSignIn({
     };
   }
 
+  clearPendingPopupAuthState();
   return {
     error: "Popup blocked. Enable popups and try again.",
     popupOpened: false,

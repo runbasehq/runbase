@@ -32,7 +32,11 @@ export async function proxy(request: NextRequest) {
         pathname.startsWith("/sign-in") &&
         !redirectUrl.searchParams.has("next")
       ) {
-        redirectUrl.searchParams.set("next", request.url);
+        const compactNext = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+        redirectUrl.searchParams.set(
+          "next",
+          compactNext.length > 1024 ? "/" : compactNext,
+        );
       }
 
       return NextResponse.redirect(redirectUrl);
