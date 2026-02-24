@@ -27,6 +27,7 @@ Copy `apps/web/.env.example` and set:
 - `POLAR_TRIAL_INTERVAL` (optional: `day`, `week`, `month`, `year`; defaults to `month`)
 - `POLAR_TRIAL_INTERVAL_COUNT` (optional integer, defaults to `1`)
 - `POLAR_TRIAL_DISCOUNT_ID` (optional; useful when checkout should not require payment setup during trial)
+- `BETTER_AUTH_PRODUCTION_URL` (canonical auth URL used for OAuth callback proxying)
 
 ## Run locally
 
@@ -57,6 +58,12 @@ Custom domain key format: `domain:{hostname}`.
 - Set `NEXT_PUBLIC_ROOT_DOMAIN=your-domain.com`.
 - Vercel preview hostnames like `tenant---branch.vercel.app` are parsed for tenant routing.
 - For custom domains, add/verify domains via Dashboard and configure DNS records shown in the UI.
+
+## OAuth callback notes
+
+- In OAuth providers (GitHub/Google), register callback URLs using `BETTER_AUTH_PRODUCTION_URL`:
+  - `https://<better-auth-production-url>/api/auth/callback/github`
+  - `https://<better-auth-production-url>/api/auth/callback/google`
 
 ## Polar webhook setup
 

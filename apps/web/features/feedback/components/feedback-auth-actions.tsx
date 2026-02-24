@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 import {
   AlertDialog,
@@ -14,7 +15,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { FancyButton } from "@/components/ui/fancy-button";
-import { authClient } from "@/lib/auth-client";
+import { getAuthRootOrigin } from "~/auth/lib/get-auth-root-origin";
+import { consumePendingPopupAuthState } from "~/auth/lib/popup-auth-state";
+import { startSocialPopupSignIn } from "~/auth/lib/start-social-popup-sign-in";
 import type {
   FeedbackBoardItem,
   FeedbackStatusItem,
@@ -43,17 +46,45 @@ export function FeedbackAuthActions({
   defaultBoard,
   defaultStatus,
 }: FeedbackAuthActionsProps) {
-  const [isGithubPending, setIsGithubPending] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    const authRootOrigin = getAuthRootOrigin();
+    const trustedOrigins = new Set([window.location.origin, authRootOrigin]);
+
+    function handleAuthComplete(event: MessageEvent) {
+      if (!trustedOrigins.has(event.origin)) {
+        return;
+      }
+
+      const payload = event.data as {
+        type?: string;
+        refreshOnly?: boolean;
+        authState?: string;
+      } | null;
+      if (
+        payload?.type !== "runbase-auth-complete" ||
+        payload.refreshOnly !== true ||
+        !consumePendingPopupAuthState(payload.authState)
+      ) {
+        return;
+      }
+
+      router.refresh();
+    }
+
+    window.addEventListener("message", handleAuthComplete);
+    return () => window.removeEventListener("message", handleAuthComplete);
+  }, [router]);
 
   async function handleGithubSignIn() {
-    setIsGithubPending(true);
-    const { error } = await authClient.signIn.social({
+    const result = await startSocialPopupSignIn({
       provider: "github",
-      callbackURL: callbackUrl,
+      nextTarget: callbackUrl,
     });
 
-    if (error) {
-      setIsGithubPending(false);
+    if (result.error) {
+      return;
     }
   }
 
@@ -64,7 +95,6 @@ export function FeedbackAuthActions({
         signInHref={signInHref}
         onGithubSignIn={handleGithubSignIn}
         githubAuthEnabled={githubAuthEnabled}
-        isGithubPending={isGithubPending}
         workspaceSlug={workspaceSlug}
         defaultBoard={defaultBoard}
         defaultStatus={defaultStatus}
@@ -84,7 +114,6 @@ interface CreatePostAuthGateProps {
   signInHref: string;
   onGithubSignIn: () => Promise<void>;
   githubAuthEnabled: boolean;
-  isGithubPending: boolean;
   workspaceSlug: string;
   defaultBoard: Pick<FeedbackBoardItem, "id" | "name">;
   defaultStatus: Pick<FeedbackStatusItem, "id" | "key" | "label">;
@@ -95,7 +124,6 @@ function CreatePostAuthGate({
   signInHref,
   onGithubSignIn,
   githubAuthEnabled,
-  isGithubPending,
   workspaceSlug,
   defaultBoard,
   defaultStatus,
@@ -131,12 +159,9 @@ function CreatePostAuthGate({
               type="button"
               variant="neutral"
               size="small"
-              disabled={isGithubPending}
               onClick={onGithubSignIn}
             >
-              {isGithubPending
-                ? "Redirecting to GitHub..."
-                : "Continue with GitHub"}
+              Continue with GitHub
             </FancyButton.Root>
           ) : null}
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { FancyButton } from "@/components/ui/fancy-button";
 import {
@@ -14,11 +14,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
+import { getAuthRootOrigin } from "~/auth/lib/get-auth-root-origin";
+import { consumePendingPopupAuthState } from "~/auth/lib/popup-auth-state";
+import { getSafeAuthRedirect } from "~/auth/lib/safe-auth-redirect";
+import { startSocialPopupSignIn } from "~/auth/lib/start-social-popup-sign-in";
 
 interface FeedbackAuthModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workspaceSlug: string;
   githubAuthEnabled: boolean;
   onAuthenticated: () => void;
 }
@@ -26,42 +29,63 @@ interface FeedbackAuthModalProps {
 export function FeedbackAuthModal({
   open,
   onOpenChange,
-  workspaceSlug,
   githubAuthEnabled,
   onAuthenticated,
 }: FeedbackAuthModalProps) {
   const router = useRouter();
-  const pathname = usePathname();
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
-  const [isGithubPending, setIsGithubPending] = useState(false);
 
-  const isScopedWorkspacePath =
-    pathname === `/s/${workspaceSlug}` ||
-    pathname.startsWith(`/s/${workspaceSlug}/`);
+  useEffect(() => {
+    const authRootOrigin = getAuthRootOrigin();
+    const trustedOrigins = new Set([window.location.origin, authRootOrigin]);
+
+    function handleAuthComplete(event: MessageEvent) {
+      if (!trustedOrigins.has(event.origin)) {
+        return;
+      }
+
+      const payload = event.data as {
+        type?: string;
+        refreshOnly?: boolean;
+        authState?: string;
+      } | null;
+      if (
+        payload?.type !== "runbase-auth-complete" ||
+        payload.refreshOnly !== true ||
+        !consumePendingPopupAuthState(payload.authState)
+      ) {
+        return;
+      }
+
+      onOpenChange(false);
+      onAuthenticated();
+      router.refresh();
+    }
+
+    window.addEventListener("message", handleAuthComplete);
+    return () => window.removeEventListener("message", handleAuthComplete);
+  }, [onAuthenticated, onOpenChange, router]);
 
   function getAuthCallbackPath() {
-    if (isScopedWorkspacePath) {
-      return `/s/${workspaceSlug}`;
+    if (typeof window === "undefined") {
+      return "/";
     }
 
-    if (pathname === "/" || pathname.startsWith("/p/")) {
-      return pathname;
-    }
+    const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
 
-    return "/";
+    return getSafeAuthRedirect(currentPath) || "/";
   }
-
-  const callbackURL = getAuthCallbackPath();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setIsPending(true);
+    const callbackURL = getAuthCallbackPath();
 
     const response =
       mode === "sign-up"
@@ -96,20 +120,17 @@ export function FeedbackAuthModal({
 
   async function handleGithubSignIn() {
     setError(null);
-    setIsGithubPending(true);
-
-    const { error: socialSignInError } = await authClient.signIn.social({
+    const result = await startSocialPopupSignIn({
       provider: "github",
-      callbackURL,
+      nextTarget: getAuthCallbackPath(),
     });
 
-    if (socialSignInError) {
-      setError(socialSignInError.message || "Unable to sign in with GitHub");
-      setIsGithubPending(false);
+    if (result.error) {
+      setError(result.error || "Unable to sign in with GitHub");
     }
   }
 
-  const isActionPending = isPending || isGithubPending;
+  const isActionPending = isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -213,7 +234,7 @@ export function FeedbackAuthModal({
             onClick={handleGithubSignIn}
             className="w-full"
           >
-            {isGithubPending ? "Redirecting..." : "Continue with GitHub"}
+            Continue with GitHub
           </FancyButton.Root>
         ) : null}
       </DialogContent>

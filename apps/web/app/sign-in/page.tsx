@@ -8,6 +8,7 @@ import { RunbaseLogo } from "@/components/logos/runbase-logo";
 import { auth } from "@/lib/auth";
 import { createPageMetadata } from "@/lib/seo";
 import { protocol, rootDomain } from "@/lib/utils";
+import { getSafeAuthRedirect } from "~/auth/lib/safe-auth-redirect";
 import { getFirstWorkspaceMembershipForUser } from "@/lib/workspaces";
 import { SignIn } from "~/auth/components/sign-in";
 import { normalizeCompanyName } from "~/workspace/schemas/create-workspace";
@@ -24,6 +25,7 @@ export const dynamic = "force-dynamic";
 
 type SignInSearchParams = {
   companyName?: string | string[];
+  next?: string | string[];
 };
 
 function readSingleParam(value: string | string[] | undefined) {
@@ -43,12 +45,19 @@ export default async function SignInPage({
   const companyName = normalizeCompanyName(
     readSingleParam(resolvedSearchParams.companyName),
   );
+  const safeNext = getSafeAuthRedirect(
+    readSingleParam(resolvedSearchParams.next),
+  );
 
   const session = await auth.api.getSession({
     headers: await headers(),
   });
 
   if (session?.user) {
+    if (safeNext) {
+      redirect(safeNext);
+    }
+
     const existingMembership = await getFirstWorkspaceMembershipForUser(
       session.user.id,
     );

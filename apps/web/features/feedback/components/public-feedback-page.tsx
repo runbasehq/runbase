@@ -489,7 +489,6 @@ export function PublicFeedbackPage({
       <FeedbackAuthModal
         open={authOpen}
         onOpenChange={setAuthOpen}
-        workspaceSlug={workspaceSlug}
         githubAuthEnabled={githubAuthEnabled}
         onAuthenticated={handleAuthenticated}
       />
