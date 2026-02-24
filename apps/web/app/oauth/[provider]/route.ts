@@ -98,7 +98,7 @@ export async function GET(
 
   const finalLoadingOrigin =
     preferredWorkspaceOrigin || safeOpenerOrigin || authRootOrigin;
-  const finalLoadingUrl = new URL("/oauth/loading", finalLoadingOrigin);
+  const finalLoadingUrl = new URL("/loading", finalLoadingOrigin);
   if (authStateParam) {
     finalLoadingUrl.searchParams.set("token", authStateParam);
   }

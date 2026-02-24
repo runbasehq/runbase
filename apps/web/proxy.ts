@@ -14,6 +14,10 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(`${protocol}://${rootDomain}`);
     }
 
+    if (pathname === "/loading") {
+      return NextResponse.next();
+    }
+
     if (pathname === "/oauth/loading") {
       return NextResponse.next();
     }
