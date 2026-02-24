@@ -31,7 +31,7 @@ Copy `apps/web/.env.example` and set:
 ## Run locally
 
 ```bash
-bun --filter web dev
+pnpm --filter web dev
 ```
 
 Root app: `http://localhost:3000`
@@ -68,8 +68,8 @@ Custom domain key format: `domain:{hostname}`.
 ## Polar bootstrap scripts
 
 - Create/update catalog products and print env values:
-  - `bun --filter web polar:bootstrap-products`
+  - `pnpm --filter web polar:bootstrap-products`
 - Create webhook endpoint via API:
   - set `POLAR_WEBHOOK_URL` first
-  - `bun --filter web polar:setup-webhook`
+  - `pnpm --filter web polar:setup-webhook`
   - output includes `POLAR_WEBHOOK_SECRET` when endpoint is created
