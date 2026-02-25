@@ -21,7 +21,7 @@ export interface AxiomLogger {
 }
 
 const token = process.env.AXIOM_TOKEN;
-const dataset = process.env.AXIOM_DATASET;
+const dataset = process.env.AXIOM_DATASET?.trim() || "auth-logs";
 const axiom = token ? new Axiom({ token }) : null;
 
 function createEvent(

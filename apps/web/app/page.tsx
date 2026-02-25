@@ -150,7 +150,7 @@ export default async function Page() {
                       href="/sign-in"
                       className="hidden text-[14px] font-medium text-black/70 transition-colors hover:text-black md:inline-flex"
                     >
-                      Log in
+                      Login
                     </Link>
                     <FancyButtonRoot asChild variant="neutral" size="small">
                       <Link href="/sign-up">Sign up</Link>
