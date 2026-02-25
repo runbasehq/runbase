@@ -78,8 +78,8 @@ export function UpvoteButton({
           ? "w-11 flex-col items-center justify-center gap-1 rounded-(--r-sm) border px-1 py-2 text-xs"
           : "items-center gap-2 rounded-(--r-sm) border px-3 py-1.5 text-sm",
         optimisticHasVoted
-          ? "border-indigo-500 bg-indigo-50 text-indigo-600"
-          : "border-slate-300 bg-white text-slate-500",
+          ? "border-[color:var(--primary)] bg-[color:var(--primary-soft)] text-[color:var(--primary)]"
+          : "border-(--border) bg-(--surface) text-(--muted)",
         className,
       )}
       aria-label={optimisticHasVoted ? "Remove upvote" : "Upvote post"}

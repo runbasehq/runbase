@@ -15,6 +15,7 @@ import {
   getAnonCookieForSync,
   syncAnonymousVotesOnAuthenticatedRequest,
 } from "~/feedback/lib/vote-sync";
+import { getCachedPublicWorkspaceTheme } from "~/workspace-theme/server/workspace-theme-cache";
 
 export async function getPublicFeedbackPageData(subdomain: string) {
   const foundWorkspace = await getWorkspaceBySlug(subdomain);
@@ -26,6 +27,9 @@ export async function getPublicFeedbackPageData(subdomain: string) {
   const requestHeaders = await headers();
   const cookieStore = await cookies();
   const session = await auth.api.getSession({ headers: requestHeaders });
+  const workspaceTheme = await getCachedPublicWorkspaceTheme(
+    foundWorkspace.slug,
+  );
   const anonCookie = cookieStore.get(FEEDBACK_ANON_COOKIE)?.value ?? null;
   const anonSessionId = getAnonCookieForSync(anonCookie);
   const membership = session?.user?.id
@@ -77,6 +81,7 @@ export async function getPublicFeedbackPageData(subdomain: string) {
   return {
     workspaceSlug: foundWorkspace.slug,
     workspaceName: foundWorkspace.name,
+    workspaceTheme,
     initialPosts: snapshot.posts,
     isAuthenticated: Boolean(session?.user),
     viewer: session?.user

@@ -6,6 +6,7 @@ import { getWorkspaceBySlug } from "@/lib/workspaces";
 import { protocol, rootDomain } from "@/lib/utils";
 import { PublicFeedbackPage } from "~/feedback/components/public-feedback-page";
 import { getPublicFeedbackPageData } from "~/feedback/server/get-public-feedback-page-data";
+import { getCachedPublicWorkspaceTheme } from "~/workspace-theme/server/workspace-theme-cache";
 
 export async function generateMetadata({
   params,
@@ -19,6 +20,10 @@ export async function generateMetadata({
     return { title: rootDomain };
   }
 
+  const workspaceTheme = await getCachedPublicWorkspaceTheme(
+    foundWorkspace.slug,
+  );
+  const faviconUrl = workspaceTheme.logoUrl;
   const workspaceUrl = `${protocol}://${foundWorkspace.slug}.${rootDomain}`;
   const title = `${foundWorkspace.name} Feedback`;
   const description = `Public feedback board for ${foundWorkspace.name}. Share ideas, vote on roadmap priorities, and follow product updates.`;
@@ -51,6 +56,13 @@ export async function generateMetadata({
       description,
       images: ["/feedback.webp"],
     },
+    icons: faviconUrl
+      ? {
+          icon: [{ url: faviconUrl }],
+          shortcut: [{ url: faviconUrl }],
+          apple: [{ url: faviconUrl }],
+        }
+      : undefined,
     keywords: [...defaultKeywords, `${foundWorkspace.name} feedback board`],
     robots: {
       index: true,
@@ -81,6 +93,7 @@ export default async function WorkspacePublicPage({
     <PublicFeedbackPage
       workspaceSlug={pageData.workspaceSlug}
       workspaceName={pageData.workspaceName}
+      workspaceTheme={pageData.workspaceTheme}
       initialPosts={pageData.initialPosts}
       isAuthenticated={pageData.isAuthenticated}
       viewer={pageData.viewer}

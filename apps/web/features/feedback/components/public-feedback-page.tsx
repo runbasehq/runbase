@@ -29,6 +29,11 @@ import { UpvoteButton } from "~/feedback/components/upvote-button";
 import { extractTextFromFeedbackContent } from "~/feedback/lib/rich-content";
 import { usePosts } from "~/posts/hooks/use-posts";
 import { postsQueryKeys } from "~/posts/lib/query-keys";
+import {
+  getWorkspaceThemeCssVariables,
+  normalizeWorkspacePublicTheme,
+} from "~/workspace-theme/lib/theme-defaults";
+import type { WorkspacePublicTheme } from "~/workspace-theme/lib/types";
 
 import { CreateFeedbackPostDialog } from "./create-feedback-post-dialog";
 import { FeedbackAuthModal } from "./feedback-auth-modal";
@@ -37,6 +42,9 @@ import { PublicFeedbackPostDetailDialog } from "./public-feedback-post-detail-di
 interface PublicFeedbackPageProps {
   workspaceSlug: string;
   workspaceName: string;
+  workspaceTheme: WorkspacePublicTheme;
+  editorMode?: boolean;
+  editorTopOffsetPx?: number;
   initialPosts: FeedbackPostItem[];
   isAuthenticated: boolean;
   viewer: {
@@ -54,6 +62,9 @@ interface PublicFeedbackPageProps {
 export function PublicFeedbackPage({
   workspaceSlug,
   workspaceName,
+  workspaceTheme,
+  editorMode = false,
+  editorTopOffsetPx = 0,
   initialPosts,
   isAuthenticated,
   viewer,
@@ -63,6 +74,21 @@ export function PublicFeedbackPage({
   defaultStatus,
   initialSelectedPostId = null,
 }: PublicFeedbackPageProps) {
+  const normalizedTheme = useMemo(
+    () => normalizeWorkspacePublicTheme(workspaceTheme),
+    [workspaceTheme],
+  );
+  const editorTopOffset = Math.max(0, Math.round(editorTopOffsetPx));
+  const themeStyles = useMemo(
+    () =>
+      ({
+        ...getWorkspaceThemeCssVariables(normalizedTheme),
+        ...(editorMode
+          ? { "--public-editor-top-offset": `${editorTopOffset}px` }
+          : {}),
+      }) as React.CSSProperties,
+    [editorMode, editorTopOffset, normalizedTheme],
+  );
   const [authOpen, setAuthOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortView, setSortView] = useState<"new" | "top" | "trending">("top");
@@ -87,6 +113,9 @@ export function PublicFeedbackPage({
   }, [pathname]);
   const selectedPostId =
     pathPostId ?? initialSelectedPostId ?? legacyQueryPostId;
+  const containerClassName = editorMode
+    ? "w-full px-5 lg:px-8"
+    : "mx-auto w-full max-w-6xl px-4 sm:px-6";
 
   const selectedPost = useMemo(
     () => posts.find((post) => post.id === selectedPostId) ?? null,
@@ -267,15 +296,38 @@ export function PublicFeedbackPage({
   }, [isScopedWorkspacePath, posts, router, workspaceSlug]);
 
   return (
-    <main className="min-h-screen bg-(--bg)" data-ui-theme="agency-dashboard">
-      <div className="flex min-h-screen flex-col">
+    <main
+      className={`${editorMode ? "min-h-[calc(100svh-var(--public-editor-top-offset,0px))]" : "min-h-screen"} bg-(--bg) [font-family:var(--public-font-family)]`}
+      style={themeStyles}
+      data-ui-theme="agency-dashboard"
+    >
+      <div
+        className={`flex ${editorMode ? "min-h-[calc(100svh-var(--public-editor-top-offset,0px))]" : "min-h-screen"} flex-col`}
+      >
         <section className="border-b border-(--border) bg-(--surface)">
-          <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
+          {normalizedTheme.bannerUrl ? (
+            <div className="relative h-36 border-b border-(--border) bg-(--surface) sm:h-44">
+              <img
+                src={normalizedTheme.bannerUrl}
+                alt={`${workspaceName} banner`}
+                className="h-full w-full object-cover"
+              />
+            </div>
+          ) : null}
+          <div className={containerClassName}>
             <header className="flex items-center justify-between gap-4 py-4 sm:py-5">
               <div className="flex items-center gap-3">
-                <div className="flex size-8 items-center justify-center rounded-full bg-[#4a22b7] text-xs font-semibold text-white">
-                  {workspaceName.slice(0, 1).toUpperCase()}
-                </div>
+                {normalizedTheme.logoUrl ? (
+                  <img
+                    src={normalizedTheme.logoUrl}
+                    alt={`${workspaceName} logo`}
+                    className="size-10 rounded-(--r-sm) border border-(--border) bg-(--surface) object-cover"
+                  />
+                ) : (
+                  <div className="flex size-9 items-center justify-center rounded-(--r-sm) bg-(--primary) text-xs font-semibold text-[color:var(--primary-foreground)]">
+                    {workspaceName.slice(0, 1).toUpperCase()}
+                  </div>
+                )}
                 <h1 className="text-3xl font-semibold leading-none text-(--text)">
                   {workspaceName}
                 </h1>
@@ -347,13 +399,13 @@ export function PublicFeedbackPage({
         </section>
 
         <section className="flex-1 bg-(--bg)">
-          <div className="mx-auto h-full w-full max-w-6xl px-4 py-6 sm:px-6">
+          <div className={`${containerClassName} h-full py-6`}>
             <section className="mb-4 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 className={`rounded-(--r-sm) border px-4 py-2 text-sm font-medium transition ${
                   sortView === "new"
-                    ? "border-indigo-500 bg-white text-slate-900"
+                    ? "border-[color:var(--primary)] bg-[color:var(--primary-soft)] text-(--text)"
                     : "border-(--border) bg-(--surface) text-(--muted)"
                 }`}
                 onClick={() => setSortView("new")}
@@ -364,7 +416,7 @@ export function PublicFeedbackPage({
                 type="button"
                 className={`rounded-(--r-sm) border px-4 py-2 text-sm font-medium transition ${
                   sortView === "top"
-                    ? "border-indigo-500 bg-white text-slate-900"
+                    ? "border-[color:var(--primary)] bg-[color:var(--primary-soft)] text-(--text)"
                     : "border-(--border) bg-(--surface) text-(--muted)"
                 }`}
                 onClick={() => setSortView("top")}
@@ -375,7 +427,7 @@ export function PublicFeedbackPage({
                 type="button"
                 className={`rounded-(--r-sm) border px-4 py-2 text-sm font-medium transition ${
                   sortView === "trending"
-                    ? "border-indigo-500 bg-white text-slate-900"
+                    ? "border-[color:var(--primary)] bg-[color:var(--primary-soft)] text-(--text)"
                     : "border-(--border) bg-(--surface) text-(--muted)"
                 }`}
                 onClick={() => setSortView("trending")}
@@ -389,7 +441,7 @@ export function PublicFeedbackPage({
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   placeholder="Search"
-                  className="h-9 rounded-(--r-sm) border-(--border) bg-(--surface) pr-3 pl-9 text-sm text-(--text) placeholder:text-(--muted) focus-visible:border-indigo-500 focus-visible:ring-indigo-400/30"
+                  className="h-9 rounded-(--r-sm) border-(--border) bg-(--surface) pr-3 pl-9 text-sm text-(--text) placeholder:text-(--muted) focus-visible:border-[var(--primary)] focus-visible:ring-[var(--ring)]"
                 />
               </div>
 
@@ -430,7 +482,7 @@ export function PublicFeedbackPage({
                     role="button"
                     tabIndex={0}
                     aria-label={`Open post: ${post.title}`}
-                    className="grid cursor-pointer grid-cols-[minmax(0,1fr)_64px] border-b border-(--border) transition hover:bg-slate-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60 last:border-b-0"
+                    className="grid cursor-pointer grid-cols-[minmax(0,1fr)_64px] border-b border-(--border) transition hover:bg-(--surface-2) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] last:border-b-0"
                     onClick={() => openPost(post.id)}
                     onMouseEnter={() => prefetchPost(post.id)}
                     onFocus={() => prefetchPost(post.id)}
@@ -451,7 +503,7 @@ export function PublicFeedbackPage({
                       <h3 className="text-xl leading-tight font-semibold tracking-tight text-(--text)">
                         {post.title}
                       </h3>
-                      <p className="mt-2 text-base leading-relaxed text-[#4a5686]">
+                      <p className="mt-2 text-base leading-relaxed text-(--muted)">
                         {excerpt(post.content)}
                       </p>
 

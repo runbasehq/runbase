@@ -102,6 +102,7 @@ export const workspace = pgTable(
     emailSenderFounder: text("email_sender_founder").notNull().default("fran"),
     welcomeEmailSentAt: timestamp("welcome_email_sent_at"),
     welcomeEmailMessageId: text("welcome_email_message_id"),
+    publicTheme: text("public_theme"),
     createdByUserId: text("created_by_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
