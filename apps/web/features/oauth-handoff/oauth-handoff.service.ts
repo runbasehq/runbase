@@ -40,10 +40,19 @@ function parseCookies(cookieHeader: string | null | undefined): CookieEntry[] {
       }
 
       const name = chunk.slice(0, separatorIndex).trim();
-      const value = chunk.slice(separatorIndex + 1).trim();
+      const rawValue = chunk.slice(separatorIndex + 1).trim();
 
-      if (!name || !value) {
+      if (!name || !rawValue) {
         return null;
+      }
+
+      // Decode URL-encoded cookie values so that response.cookies.set()
+      // doesn't double-encode them (e.g. %2B → %252B).
+      let value: string;
+      try {
+        value = decodeURIComponent(rawValue);
+      } catch {
+        value = rawValue;
       }
 
       return { name, value };
