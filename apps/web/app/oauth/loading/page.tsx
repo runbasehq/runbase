@@ -13,6 +13,7 @@ type OAuthLoadingSearchParams = {
   authState?: string | string[];
   type?: string | string[];
   oid?: string | string[];
+  handoff?: string | string[];
 };
 
 function readSingleParam(value: string | string[] | undefined) {
@@ -38,6 +39,7 @@ export default async function OAuthLoadingPage({
     readSingleParam(resolvedSearchParams.token);
   const authType = readSingleParam(resolvedSearchParams.type);
   const oid = readSingleParam(resolvedSearchParams.oid);
+  const handoffDone = readSingleParam(resolvedSearchParams.handoff) === "1";
 
   const safeReturnTo =
     (await getSafeServerAuthRedirect(rawReturnTo)) ||
@@ -52,6 +54,7 @@ export default async function OAuthLoadingPage({
       authState={authState}
       authType={authType}
       oid={oid}
+      handoffDone={handoffDone}
     />
   );
 }

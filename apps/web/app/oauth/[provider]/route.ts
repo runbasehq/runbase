@@ -108,13 +108,13 @@ export async function GET(
   const finalLoadingOrigin =
     resolvedOpenerOrigin || preferredWorkspaceOrigin || authRootOrigin;
   const finalLoadingUrl = new URL("/oauth/loading", finalLoadingOrigin);
+  finalLoadingUrl.searchParams.set("returnTo", absoluteReturnTo);
   if (authStateParam) {
-    finalLoadingUrl.searchParams.set("token", authStateParam);
+    finalLoadingUrl.searchParams.set("authState", authStateParam);
   }
   if (resolvedOpenerOrigin) {
     finalLoadingUrl.searchParams.set("openerOrigin", resolvedOpenerOrigin);
   }
-  finalLoadingUrl.searchParams.set("returnTo", absoluteReturnTo);
   if (typeParam) {
     finalLoadingUrl.searchParams.set("type", typeParam);
   }
@@ -139,11 +139,17 @@ export async function GET(
   }
 
   const authStartUrl = new URL("/api/auth/sign-in/social", authRootOrigin);
+  const brokerReferer = new URL(
+    `/oauth/${provider}`,
+    authRootOrigin,
+  ).toString();
   const incomingCookies = request.headers.get("cookie");
   const startResponse = await fetch(authStartUrl, {
     method: "POST",
     headers: {
       "content-type": "application/json",
+      origin: authRootOrigin,
+      referer: brokerReferer,
       ...(incomingCookies ? { cookie: incomingCookies } : {}),
     },
     body: JSON.stringify({
@@ -153,6 +159,12 @@ export async function GET(
     }),
     redirect: "manual",
   });
+
+  if (startResponse.status >= 400) {
+    callbackUrl.searchParams.set("error", "auth_start_failed");
+    callbackUrl.searchParams.set("status", String(startResponse.status));
+    return NextResponse.redirect(callbackUrl);
+  }
 
   const redirectLocation = startResponse.headers.get("location");
   const payload = (await startResponse.json().catch(() => null)) as unknown;

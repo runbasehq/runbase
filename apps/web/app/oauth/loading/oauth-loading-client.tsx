@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 
+import { rootDomain } from "@/lib/utils";
 import { isAbsoluteUrl } from "~/auth/lib/url";
 
 interface OAuthLoadingClientProps {
@@ -10,6 +11,7 @@ interface OAuthLoadingClientProps {
   authState: string | null;
   authType: string | null;
   oid: string | null;
+  handoffDone: boolean;
 }
 
 export function OAuthLoadingClient({
@@ -18,11 +20,73 @@ export function OAuthLoadingClient({
   authState,
   authType,
   oid,
+  handoffDone,
 }: OAuthLoadingClientProps) {
   useEffect(() => {
     if (isAbsoluteUrl(returnTo)) {
       try {
-        if (new URL(returnTo).origin !== window.location.origin) {
+        const targetUrl = new URL(returnTo);
+        if (targetUrl.origin !== window.location.origin) {
+          const currentHost = window.location.hostname.toLowerCase();
+          const targetHost = targetUrl.hostname.toLowerCase();
+          const rootHost = rootDomain.split(":")[0]?.toLowerCase() || "";
+
+          const isRootFamilyHost = (host: string) =>
+            host === rootHost || host.endsWith(`.${rootHost}`);
+          const isLocalDevFamilyHost = (host: string) =>
+            host === "localhost" ||
+            host.endsWith(".localhost") ||
+            host === "127.0.0.1" ||
+            host === "lvh.me" ||
+            host.endsWith(".lvh.me");
+
+          const isRootFamilyCrossOrigin =
+            isRootFamilyHost(currentHost) && isRootFamilyHost(targetHost);
+          const isLocalDevCrossOrigin =
+            isLocalDevFamilyHost(currentHost) &&
+            isLocalDevFamilyHost(targetHost);
+          const shouldUseHandoff =
+            !handoffDone && !isRootFamilyCrossOrigin && !isLocalDevCrossOrigin;
+
+          if (shouldUseHandoff) {
+            void (async () => {
+              try {
+                const response = await fetch("/api/auth/oauth-handoff/start", {
+                  method: "POST",
+                  headers: {
+                    "content-type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    returnTo,
+                    openerOrigin,
+                    authState,
+                    type: authType,
+                    oid,
+                  }),
+                });
+
+                if (response.ok) {
+                  const payload = (await response.json()) as {
+                    handoffUrl?: unknown;
+                  };
+
+                  if (
+                    typeof payload.handoffUrl === "string" &&
+                    payload.handoffUrl
+                  ) {
+                    window.location.replace(payload.handoffUrl);
+                    return;
+                  }
+                }
+              } catch {
+                // ignore and continue fallback navigation
+              }
+
+              window.location.replace(returnTo);
+            })();
+            return;
+          }
+
           window.location.replace(returnTo);
           return;
         }
@@ -77,7 +141,7 @@ export function OAuthLoadingClient({
     }
 
     window.location.replace(returnTo);
-  }, [authState, authType, oid, openerOrigin, returnTo]);
+  }, [authState, authType, handoffDone, oid, openerOrigin, returnTo]);
 
   return <main className="min-h-screen bg-background" aria-hidden />;
 }

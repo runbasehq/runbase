@@ -19,6 +19,13 @@ export function getSafeAuthRedirect(target: string | null | undefined) {
       return null;
     }
 
+    if (
+      typeof window !== "undefined" &&
+      parsed.origin === window.location.origin
+    ) {
+      return parsed.toString();
+    }
+
     const rootHostname = rootDomain.split(":")[0]?.toLowerCase() || "";
     const hostname = parsed.hostname.toLowerCase();
     const isAllowedHost =
