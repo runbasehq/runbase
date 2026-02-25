@@ -88,11 +88,14 @@ export default async function DashboardThemePage({
       previewData={{
         initialPosts: pageData.initialPosts,
         isAuthenticated: pageData.isAuthenticated,
+        isWorkspaceMember: pageData.isWorkspaceMember,
         viewer: pageData.viewer,
         isWorkspaceOwner: pageData.isWorkspaceOwner,
         githubAuthEnabled: pageData.githubAuthEnabled,
         defaultBoard: pageData.defaultBoard,
         defaultStatus: pageData.defaultStatus,
+        tags: pageData.tags,
+        settings: pageData.settings,
       }}
     />
   );

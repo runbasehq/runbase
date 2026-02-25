@@ -37,6 +37,7 @@ interface PublicFeedbackPostDetailDialogProps {
   onOpenChange: (open: boolean) => void;
   workspaceSlug: string;
   post: FeedbackPostItem | null;
+  hideStatuses?: boolean;
   isAuthenticated: boolean;
   onRequireAuth: () => void;
 }
@@ -48,6 +49,7 @@ export function PublicFeedbackPostDetailDialog({
   onOpenChange,
   workspaceSlug,
   post,
+  hideStatuses = false,
   isAuthenticated,
   onRequireAuth,
 }: PublicFeedbackPostDetailDialogProps) {
@@ -72,17 +74,25 @@ export function PublicFeedbackPostDetailDialog({
     }
 
     const plainContent = extractTextFromFeedbackContent(post.content);
-
-    return [
-      `# ${post.title}`,
-      "",
-      plainContent,
-      "",
-      `- Status: ${post.statusLabel}`,
+    const metadataLines = [
       `- Board: ${post.boardName}`,
       `- Date: ${createdLabel}`,
-    ].join("\n");
-  }, [createdLabel, post]);
+    ];
+
+    if (!hideStatuses) {
+      metadataLines.unshift(`- Status: ${post.statusLabel}`);
+    }
+
+    if (post.tags.length > 0) {
+      metadataLines.push(
+        `- Tags: ${post.tags.map((tag) => tag.name).join(", ")}`,
+      );
+    }
+
+    return [`# ${post.title}`, "", plainContent, "", ...metadataLines].join(
+      "\n",
+    );
+  }, [createdLabel, hideStatuses, post]);
 
   const contentHtml = useMemo(() => {
     if (!post) {
@@ -305,18 +315,45 @@ export function PublicFeedbackPostDetailDialog({
                 </div>
 
                 <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                    Status
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">
-                    {post.statusLabel}
-                  </p>
+                  {!hideStatuses ? (
+                    <>
+                      <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                        Status
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-slate-900">
+                        {post.statusLabel}
+                      </p>
+                    </>
+                  ) : null}
                   <p className="mt-3 text-xs font-semibold tracking-wide text-slate-500 uppercase">
                     Board
                   </p>
                   <p className="mt-1 text-sm font-medium text-slate-900">
                     {post.boardName}
                   </p>
+                  {post.tags.length > 0 ? (
+                    <>
+                      <p className="mt-3 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                        Tags
+                      </p>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {post.tags.map((tag) => (
+                          <span
+                            key={tag.id}
+                            className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700"
+                          >
+                            {tag.color ? (
+                              <span
+                                className="mr-1.5 size-1.5 rounded-full"
+                                style={{ backgroundColor: tag.color }}
+                              />
+                            ) : null}
+                            {tag.name}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
                   <p className="mt-3 text-xs font-semibold tracking-wide text-slate-500 uppercase">
                     Date
                   </p>

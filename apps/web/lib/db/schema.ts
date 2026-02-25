@@ -103,6 +103,21 @@ export const workspace = pgTable(
     welcomeEmailSentAt: timestamp("welcome_email_sent_at"),
     welcomeEmailMessageId: text("welcome_email_message_id"),
     publicTheme: text("public_theme"),
+    feedbackDefaultSort: text("feedback_default_sort").notNull().default("top"),
+    feedbackHideLeaderboard: boolean("feedback_hide_leaderboard")
+      .notNull()
+      .default(false),
+    feedbackHideClosedStatuses: boolean("feedback_hide_closed_statuses")
+      .notNull()
+      .default(false),
+    feedbackHideAllStatuses: boolean("feedback_hide_all_statuses")
+      .notNull()
+      .default(false),
+    feedbackAllowPublicTagSelection: boolean(
+      "feedback_allow_public_tag_selection",
+    )
+      .notNull()
+      .default(false),
     createdByUserId: text("created_by_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -128,6 +143,10 @@ export const workspace = pgTable(
     check(
       "workspace_email_sender_founder_check",
       sql`${table.emailSenderFounder} in ('fran', 'jere')`,
+    ),
+    check(
+      "workspace_feedback_default_sort_check",
+      sql`${table.feedbackDefaultSort} in ('new', 'top', 'trending')`,
     ),
     index("workspace_created_by_user_id_idx").on(table.createdByUserId),
   ],

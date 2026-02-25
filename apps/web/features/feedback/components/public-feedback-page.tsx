@@ -22,8 +22,10 @@ import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import type {
   FeedbackBoardItem,
+  FeedbackPublicSettings,
   FeedbackPostItem,
   FeedbackStatusItem,
+  FeedbackTagItem,
 } from "~/feedback/lib/types";
 import { UpvoteButton } from "~/feedback/components/upvote-button";
 import { extractTextFromFeedbackContent } from "~/feedback/lib/rich-content";
@@ -47,6 +49,7 @@ interface PublicFeedbackPageProps {
   editorTopOffsetPx?: number;
   initialPosts: FeedbackPostItem[];
   isAuthenticated: boolean;
+  isWorkspaceMember: boolean;
   viewer: {
     name: string | null;
     email: string | null;
@@ -55,7 +58,12 @@ interface PublicFeedbackPageProps {
   isWorkspaceOwner: boolean;
   githubAuthEnabled: boolean;
   defaultBoard: Pick<FeedbackBoardItem, "id" | "name"> | null;
-  defaultStatus: Pick<FeedbackStatusItem, "id" | "key" | "label"> | null;
+  defaultStatus: Pick<
+    FeedbackStatusItem,
+    "id" | "key" | "label" | "isClosed"
+  > | null;
+  tags: FeedbackTagItem[];
+  settings: FeedbackPublicSettings;
   initialSelectedPostId?: string | null;
 }
 
@@ -67,11 +75,14 @@ export function PublicFeedbackPage({
   editorTopOffsetPx = 0,
   initialPosts,
   isAuthenticated,
+  isWorkspaceMember,
   viewer,
   isWorkspaceOwner,
   githubAuthEnabled,
   defaultBoard,
   defaultStatus,
+  tags,
+  settings,
   initialSelectedPostId = null,
 }: PublicFeedbackPageProps) {
   const normalizedTheme = useMemo(
@@ -91,7 +102,10 @@ export function PublicFeedbackPage({
   );
   const [authOpen, setAuthOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortView, setSortView] = useState<"new" | "top" | "trending">("top");
+  const [sortView, setSortView] = useState<"new" | "top" | "trending">(
+    settings.defaultSort,
+  );
+  const [selectedBoardId, setSelectedBoardId] = useState<string>("all");
   const [viewerIsAuthenticated, setViewerIsAuthenticated] =
     useState(isAuthenticated);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -121,17 +135,47 @@ export function PublicFeedbackPage({
     () => posts.find((post) => post.id === selectedPostId) ?? null,
     [posts, selectedPostId],
   );
+  const canAssignPublicTags =
+    isWorkspaceMember || settings.allowPublicTagSelection;
+
+  const boardFilters = useMemo(() => {
+    const byBoard = new Map<
+      string,
+      { id: string; name: string; count: number }
+    >();
+
+    for (const post of posts) {
+      const current = byBoard.get(post.boardId);
+
+      if (current) {
+        current.count += 1;
+        continue;
+      }
+
+      byBoard.set(post.boardId, {
+        id: post.boardId,
+        name: post.boardName,
+        count: 1,
+      });
+    }
+
+    return [...byBoard.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [posts]);
 
   const filteredPosts = useMemo(() => {
+    const byBoard =
+      selectedBoardId === "all"
+        ? posts
+        : posts.filter((post) => post.boardId === selectedBoardId);
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
     const searched = normalizedSearch
-      ? posts.filter((post) => {
+      ? byBoard.filter((post) => {
           const haystack =
             `${post.title} ${extractTextFromFeedbackContent(post.content)}`.toLowerCase();
           return haystack.includes(normalizedSearch);
         })
-      : posts;
+      : byBoard;
 
     const sorted = [...searched];
 
@@ -155,7 +199,19 @@ export function PublicFeedbackPage({
 
     sorted.sort((a, b) => b.upvoteCount - a.upvoteCount);
     return sorted;
-  }, [posts, searchTerm, sortView]);
+  }, [posts, searchTerm, selectedBoardId, sortView]);
+
+  const leaderboardPosts = useMemo(() => {
+    const sorted = [...posts].sort((a, b) => {
+      if (b.upvoteCount !== a.upvoteCount) {
+        return b.upvoteCount - a.upvoteCount;
+      }
+
+      return b.commentCount - a.commentCount;
+    });
+
+    return sorted.slice(0, 5);
+  }, [posts]);
 
   function handleAuthenticated() {
     setViewerIsAuthenticated(true);
@@ -388,7 +444,7 @@ export function PublicFeedbackPage({
                 type="button"
                 className="relative rounded-t-(--r-sm) border border-b-0 border-(--border) bg-(--bg) px-4 py-2 text-sm font-semibold text-(--text)"
               >
-                Ideas + Bugs
+                {defaultBoard?.name || "Ideas + Bugs"}
                 <div
                   className="pointer-events-none absolute inset-x-0 -bottom-px h-px bg-(--bg)"
                   aria-hidden="true"
@@ -401,6 +457,34 @@ export function PublicFeedbackPage({
         <section className="flex-1 bg-(--bg)">
           <div className={`${containerClassName} h-full py-6`}>
             <section className="mb-4 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className={`rounded-(--r-sm) border px-4 py-2 text-sm font-medium transition ${
+                  selectedBoardId === "all"
+                    ? "border-[color:var(--primary)] bg-[color:var(--primary-soft)] text-(--text)"
+                    : "border-(--border) bg-(--surface) text-(--muted)"
+                }`}
+                onClick={() => setSelectedBoardId("all")}
+              >
+                All boards
+              </button>
+              {boardFilters.map((board) => (
+                <button
+                  key={board.id}
+                  type="button"
+                  className={`rounded-(--r-sm) border px-3 py-2 text-sm font-medium transition ${
+                    selectedBoardId === board.id
+                      ? "border-[color:var(--primary)] bg-[color:var(--primary-soft)] text-(--text)"
+                      : "border-(--border) bg-(--surface) text-(--muted)"
+                  }`}
+                  onClick={() => setSelectedBoardId(board.id)}
+                >
+                  {board.name}
+                  <span className="ml-2 text-xs text-(--muted-2)">
+                    {board.count}
+                  </span>
+                </button>
+              ))}
               <button
                 type="button"
                 className={`rounded-(--r-sm) border px-4 py-2 text-sm font-medium transition ${
@@ -458,6 +542,8 @@ export function PublicFeedbackPage({
                   workspaceSlug={workspaceSlug}
                   defaultBoard={defaultBoard}
                   defaultStatus={defaultStatus}
+                  availableTags={tags}
+                  canAssignTags={canAssignPublicTags}
                   viewer={viewer}
                   onUnauthorized={() => setAuthOpen(true)}
                 />
@@ -508,10 +594,30 @@ export function PublicFeedbackPage({
                       </p>
 
                       <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-(--muted)">
-                        <span>{post.statusLabel}</span>
+                        {!settings.hideAllStatuses ? (
+                          <span>{post.statusLabel}</span>
+                        ) : null}
                         <span>{post.commentCount} comments</span>
                         <span>{post.createdAt.toLocaleDateString()}</span>
                       </div>
+                      {post.tags.length > 0 ? (
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          {post.tags.slice(0, 4).map((tag) => (
+                            <span
+                              key={tag.id}
+                              className="inline-flex items-center rounded-full border border-(--border) bg-(--surface-2) px-2.5 py-1 text-xs font-medium text-(--muted)"
+                            >
+                              {tag.color ? (
+                                <span
+                                  className="mr-1.5 size-2 rounded-full"
+                                  style={{ backgroundColor: tag.color }}
+                                />
+                              ) : null}
+                              {tag.name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="border-l border-(--border) bg-(--surface)">
@@ -533,6 +639,34 @@ export function PublicFeedbackPage({
                   </div>
                 ) : null}
               </section>
+
+              {!settings.hideLeaderboard && leaderboardPosts.length > 0 ? (
+                <section className="mt-4 rounded-(--r-md) border border-(--border) bg-(--surface) p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--muted-2)">
+                    Leaderboard
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {leaderboardPosts.map((post, index) => (
+                      <button
+                        key={`leaderboard:${post.id}`}
+                        type="button"
+                        className="flex w-full items-center gap-3 rounded-(--r-sm) border border-(--border) bg-(--surface-2) px-3 py-2 text-left text-sm text-(--text) transition-colors hover:border-(--border-strong)"
+                        onClick={() => openPost(post.id)}
+                      >
+                        <span className="inline-flex size-6 items-center justify-center rounded-full border border-(--border) text-xs font-semibold text-(--muted)">
+                          {index + 1}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate font-medium">
+                          {post.title}
+                        </span>
+                        <span className="text-xs text-(--muted)">
+                          {post.upvoteCount} votes
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
             </div>
           </div>
         </section>
@@ -554,6 +688,7 @@ export function PublicFeedbackPage({
         }}
         workspaceSlug={workspaceSlug}
         post={selectedPost}
+        hideStatuses={settings.hideAllStatuses}
         isAuthenticated={viewerIsAuthenticated}
         onRequireAuth={() => setAuthOpen(true)}
       />

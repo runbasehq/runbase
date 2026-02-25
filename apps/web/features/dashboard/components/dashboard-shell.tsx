@@ -31,7 +31,7 @@ function DashboardShellSidebar({ children }: { children: React.ReactNode }) {
 }
 
 function DashboardShellMain({ children }: { children: React.ReactNode }) {
-  return <main className="flex-1">{children}</main>;
+  return <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>;
 }
 
 function DashboardShellRoot({
@@ -44,10 +44,10 @@ function DashboardShellRoot({
 
   return (
     <div
-      className="min-h-screen bg-(--bg) text-(--text)"
+      className="h-screen overflow-hidden bg-(--bg) text-(--text)"
       data-ui-theme="agency-dashboard"
     >
-      <div className="flex min-h-screen">
+      <div className="flex h-full overflow-hidden">
         <DashboardSidebar
           className="hidden md:block"
           organizationName={organizationName}
@@ -55,7 +55,7 @@ function DashboardShellRoot({
           user={user}
         />
 
-        <div className="flex min-h-screen flex-1 flex-col">
+        <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
           <header className="sticky top-0 z-20 flex h-14 items-center border-b border-(--border) bg-(--bg)/95 px-4 backdrop-blur md:hidden">
             <Button
               variant="ghost"

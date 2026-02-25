@@ -21,6 +21,7 @@ import { startSocialPopupSignIn } from "~/auth/lib/start-social-popup-sign-in";
 import type {
   FeedbackBoardItem,
   FeedbackStatusItem,
+  FeedbackTagItem,
 } from "~/feedback/lib/types";
 
 import { CreateFeedbackPostDialog } from "./create-feedback-post-dialog";
@@ -33,7 +34,9 @@ interface FeedbackAuthActionsProps {
   githubAuthEnabled: boolean;
   workspaceSlug: string;
   defaultBoard: Pick<FeedbackBoardItem, "id" | "name">;
-  defaultStatus: Pick<FeedbackStatusItem, "id" | "key" | "label">;
+  defaultStatus: Pick<FeedbackStatusItem, "id" | "key" | "label" | "isClosed">;
+  availableTags?: FeedbackTagItem[];
+  canAssignTags?: boolean;
 }
 
 export function FeedbackAuthActions({
@@ -45,6 +48,8 @@ export function FeedbackAuthActions({
   workspaceSlug,
   defaultBoard,
   defaultStatus,
+  availableTags = [],
+  canAssignTags = false,
 }: FeedbackAuthActionsProps) {
   const router = useRouter();
 
@@ -120,6 +125,8 @@ export function FeedbackAuthActions({
         workspaceSlug={workspaceSlug}
         defaultBoard={defaultBoard}
         defaultStatus={defaultStatus}
+        availableTags={availableTags}
+        canAssignTags={canAssignTags}
       />
 
       <FancyButton.Root asChild variant="basic" size="small">
@@ -138,7 +145,9 @@ interface CreatePostAuthGateProps {
   githubAuthEnabled: boolean;
   workspaceSlug: string;
   defaultBoard: Pick<FeedbackBoardItem, "id" | "name">;
-  defaultStatus: Pick<FeedbackStatusItem, "id" | "key" | "label">;
+  defaultStatus: Pick<FeedbackStatusItem, "id" | "key" | "label" | "isClosed">;
+  availableTags: FeedbackTagItem[];
+  canAssignTags: boolean;
 }
 
 function CreatePostAuthGate({
@@ -149,6 +158,8 @@ function CreatePostAuthGate({
   workspaceSlug,
   defaultBoard,
   defaultStatus,
+  availableTags,
+  canAssignTags,
 }: CreatePostAuthGateProps) {
   if (isAuthenticated) {
     return (
@@ -156,6 +167,8 @@ function CreatePostAuthGate({
         workspaceSlug={workspaceSlug}
         defaultBoard={defaultBoard}
         defaultStatus={defaultStatus}
+        availableTags={availableTags}
+        canAssignTags={canAssignTags}
       />
     );
   }

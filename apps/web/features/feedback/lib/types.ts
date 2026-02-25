@@ -6,13 +6,31 @@ export interface FeedbackBoardItem {
   isDefault: boolean;
 }
 
+export interface FeedbackTagItem {
+  id: string;
+  name: string;
+  slug: string;
+  color: string | null;
+}
+
 export interface FeedbackStatusItem {
   id: string;
   key: string;
   label: string;
   color: string | null;
   position: number;
+  isDefault: boolean;
   isClosed: boolean;
+}
+
+export type FeedbackDefaultSort = "new" | "top" | "trending";
+
+export interface FeedbackPublicSettings {
+  defaultSort: FeedbackDefaultSort;
+  hideLeaderboard: boolean;
+  hideClosedStatuses: boolean;
+  hideAllStatuses: boolean;
+  allowPublicTagSelection: boolean;
 }
 
 export interface FeedbackPostItem {
@@ -27,7 +45,9 @@ export interface FeedbackPostItem {
   createdAt: Date;
   statusLabel: string;
   statusKey: string;
+  statusIsClosed: boolean;
   boardName: string;
+  tags: FeedbackTagItem[];
   viewerHasVoted: boolean;
 }
 
@@ -45,7 +65,22 @@ export interface FeedbackCommentItem {
 export interface FeedbackSnapshot {
   boards: FeedbackBoardItem[];
   statuses: FeedbackStatusItem[];
+  tags: FeedbackTagItem[];
+  settings: FeedbackPublicSettings;
   posts: FeedbackPostItem[];
+}
+
+export interface FeedbackSettingsSnapshot {
+  workspaceId: string;
+  workspaceSlug: string;
+  workspaceName: string;
+  boards: FeedbackBoardItem[];
+  statuses: FeedbackStatusItem[];
+  tags: FeedbackTagItem[];
+  settings: FeedbackPublicSettings;
+  permissions: {
+    canManageFeedbackSettings: boolean;
+  };
 }
 
 export type FeedbackMediaType = "image" | "video" | "attachment";

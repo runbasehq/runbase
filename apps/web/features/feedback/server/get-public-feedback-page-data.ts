@@ -15,6 +15,7 @@ import {
   getAnonCookieForSync,
   syncAnonymousVotesOnAuthenticatedRequest,
 } from "~/feedback/lib/vote-sync";
+import type { FeedbackSnapshot } from "~/feedback/lib/types";
 import { getCachedPublicWorkspaceTheme } from "~/workspace-theme/server/workspace-theme-cache";
 
 export async function getPublicFeedbackPageData(subdomain: string) {
@@ -38,6 +39,19 @@ export async function getPublicFeedbackPageData(subdomain: string) {
         foundWorkspace.slug,
       )
     : null;
+  const fallbackSnapshot: FeedbackSnapshot = {
+    boards: [],
+    statuses: [],
+    tags: [],
+    settings: {
+      defaultSort: "top",
+      hideLeaderboard: false,
+      hideClosedStatuses: false,
+      hideAllStatuses: false,
+      allowPublicTagSelection: false,
+    },
+    posts: [],
+  };
 
   const snapshot = await appRuntime.runPromise(
     Effect.gen(function* () {
@@ -52,15 +66,7 @@ export async function getPublicFeedbackPageData(subdomain: string) {
         userId: session?.user?.id ?? null,
         anonSessionId,
       });
-    }).pipe(
-      Effect.catchAll(() =>
-        Effect.succeed({
-          boards: [],
-          statuses: [],
-          posts: [],
-        }),
-      ),
-    ),
+    }).pipe(Effect.catchAll(() => Effect.succeed(fallbackSnapshot))),
   );
 
   const defaultBoard = snapshot.boards[0]
@@ -71,6 +77,7 @@ export async function getPublicFeedbackPageData(subdomain: string) {
         id: snapshot.statuses[0].id,
         key: snapshot.statuses[0].key,
         label: snapshot.statuses[0].label,
+        isClosed: snapshot.statuses[0].isClosed,
       }
     : null;
 
@@ -84,6 +91,7 @@ export async function getPublicFeedbackPageData(subdomain: string) {
     workspaceTheme,
     initialPosts: snapshot.posts,
     isAuthenticated: Boolean(session?.user),
+    isWorkspaceMember: Boolean(membership),
     viewer: session?.user
       ? {
           name:
@@ -98,5 +106,7 @@ export async function getPublicFeedbackPageData(subdomain: string) {
     githubAuthEnabled,
     defaultBoard,
     defaultStatus,
+    tags: snapshot.tags,
+    settings: snapshot.settings,
   };
 }

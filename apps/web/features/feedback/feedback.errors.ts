@@ -14,6 +14,10 @@ export class FeedbackInvalidBoard extends Data.TaggedError(
   boardId: string;
 }> {}
 
+export class FeedbackInvalidTag extends Data.TaggedError("FeedbackInvalidTag")<{
+  tagId: string;
+}> {}
+
 export class FeedbackNoBoardConfigured extends Data.TaggedError(
   "FeedbackNoBoardConfigured",
 )<Record<string, never>> {}
@@ -43,6 +47,28 @@ export class FeedbackWorkspaceNotFound extends Data.TaggedError(
   "FeedbackWorkspaceNotFound",
 )<Record<string, never>> {}
 
+export class FeedbackBoardNotFound extends Data.TaggedError(
+  "FeedbackBoardNotFound",
+)<{
+  boardId: string;
+}> {}
+
+export class FeedbackStatusNotFound extends Data.TaggedError(
+  "FeedbackStatusNotFound",
+)<{
+  statusId: string;
+}> {}
+
+export class FeedbackTagNotFound extends Data.TaggedError(
+  "FeedbackTagNotFound",
+)<{
+  tagId: string;
+}> {}
+
+export class FeedbackConflict extends Data.TaggedError("FeedbackConflict")<{
+  message: string;
+}> {}
+
 export class FeedbackForbidden extends Data.TaggedError("FeedbackForbidden")<{
   message: string;
 }> {}
@@ -67,12 +93,17 @@ export type FeedbackRouteError =
   | ParseError
   | FeedbackInvalidInput
   | FeedbackInvalidBoard
+  | FeedbackInvalidTag
   | FeedbackNoBoardConfigured
   | FeedbackNoStatusConfigured
   | FeedbackSlugGenerationFailed
   | FeedbackPostNotFound
   | FeedbackRateLimited
   | FeedbackWorkspaceNotFound
+  | FeedbackBoardNotFound
+  | FeedbackStatusNotFound
+  | FeedbackTagNotFound
+  | FeedbackConflict
   | FeedbackForbidden
   | FeedbackPersistenceError
   | FeedbackMediaStorageNotConfigured
@@ -90,6 +121,11 @@ export function handleFeedbackError(error: FeedbackRouteError): NextResponse {
     case "FeedbackInvalidBoard":
       return NextResponse.json(
         { error: `Board ${error.boardId} does not exist` },
+        { status: 400 },
+      );
+    case "FeedbackInvalidTag":
+      return NextResponse.json(
+        { error: `Tag ${error.tagId} does not exist` },
         { status: 400 },
       );
     case "FeedbackNoBoardConfigured":
@@ -123,6 +159,14 @@ export function handleFeedbackError(error: FeedbackRouteError): NextResponse {
         { error: "Workspace not found" },
         { status: 404 },
       );
+    case "FeedbackBoardNotFound":
+      return NextResponse.json({ error: "Board not found" }, { status: 404 });
+    case "FeedbackStatusNotFound":
+      return NextResponse.json({ error: "Status not found" }, { status: 404 });
+    case "FeedbackTagNotFound":
+      return NextResponse.json({ error: "Tag not found" }, { status: 404 });
+    case "FeedbackConflict":
+      return NextResponse.json({ error: error.message }, { status: 409 });
     case "FeedbackForbidden":
       return NextResponse.json({ error: error.message }, { status: 403 });
     case "FeedbackPersistenceError":

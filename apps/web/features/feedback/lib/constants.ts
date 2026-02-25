@@ -3,3 +3,9 @@ export const FEEDBACK_CONTENT_TEXT_MAX_LENGTH = 5000;
 export const FEEDBACK_CONTENT_HTML_MAX_LENGTH = 50_000;
 export const FEEDBACK_COMMENT_MAX_LENGTH = 2000;
 export const FEEDBACK_MEDIA_MAX_BYTES = 10 * 1024 * 1024;
+
+export const FEEDBACK_DEFAULT_SORT_OPTIONS = [
+  "new",
+  "top",
+  "trending",
+] as const;

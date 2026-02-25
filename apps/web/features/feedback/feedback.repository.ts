@@ -11,7 +11,9 @@ import {
   feedbackBoard,
   feedbackComment,
   feedbackPost,
+  feedbackPostTag,
   feedbackStatus,
+  feedbackTag,
   feedbackVote,
   user,
   workspace,
@@ -25,22 +27,36 @@ import { normalizeFeedbackContentToHtml } from "~/feedback/lib/rich-content";
 import type {
   FeedbackBoardItem,
   FeedbackCommentItem,
+  FeedbackDefaultSort,
   FeedbackMediaType,
   FeedbackPostItem,
+  FeedbackPublicSettings,
+  FeedbackSettingsSnapshot,
   FeedbackSnapshot,
   FeedbackStatusItem,
+  FeedbackTagItem,
   FeedbackUploadedMedia,
   FeedbackVoteSyncResult,
   VoteIdentity,
 } from "~/feedback/lib/types";
 
 import type {
+  CreateFeedbackBoardInput,
   CreateFeedbackCommentInput,
   CreateFeedbackPostInput,
+  CreateFeedbackStatusInput,
+  CreateFeedbackTagInput,
+  UpdateFeedbackBoardInput,
+  UpdateFeedbackPublicSettingsInput,
+  UpdateFeedbackStatusInput,
+  UpdateFeedbackTagInput,
   UploadFeedbackMediaInput,
 } from "./feedback.schema";
 import {
+  FeedbackBoardNotFound,
+  FeedbackConflict,
   FeedbackInvalidBoard,
+  FeedbackInvalidTag,
   FeedbackMediaStorageNotConfigured,
   FeedbackMediaUploadFailed,
   FeedbackNoBoardConfigured,
@@ -49,6 +65,8 @@ import {
   FeedbackPostNotFound,
   FeedbackRateLimited,
   FeedbackSlugGenerationFailed,
+  FeedbackStatusNotFound,
+  FeedbackTagNotFound,
 } from "./feedback.errors";
 
 export interface FeedbackSnapshotParams {
@@ -110,8 +128,77 @@ export interface FeedbackWorkspaceMembershipRecord {
   role: string;
 }
 
+export interface FeedbackWorkspaceMemberBySlugRecord {
+  workspaceId: string;
+  workspaceSlug: string;
+  workspaceName: string;
+  role: string;
+}
+
 export interface FeedbackSeedDefaultsParams {
   workspaceId: string;
+}
+
+export interface FeedbackWorkspaceScopedParams {
+  workspaceId: string;
+}
+
+export interface FeedbackWorkspaceMembershipBySlugParams {
+  workspaceSlug: string;
+  userId: string;
+}
+
+export interface UpdateFeedbackPublicSettingsParams {
+  workspaceId: string;
+  input: UpdateFeedbackPublicSettingsInput;
+}
+
+export interface CreateFeedbackBoardParams {
+  workspaceId: string;
+  input: CreateFeedbackBoardInput;
+}
+
+export interface UpdateFeedbackBoardParams {
+  workspaceId: string;
+  boardId: string;
+  input: UpdateFeedbackBoardInput;
+}
+
+export interface DeleteFeedbackBoardParams {
+  workspaceId: string;
+  boardId: string;
+}
+
+export interface CreateFeedbackStatusParams {
+  workspaceId: string;
+  input: CreateFeedbackStatusInput;
+}
+
+export interface UpdateFeedbackStatusParams {
+  workspaceId: string;
+  statusId: string;
+  input: UpdateFeedbackStatusInput;
+}
+
+export interface DeleteFeedbackStatusParams {
+  workspaceId: string;
+  statusId: string;
+}
+
+export interface CreateFeedbackTagParams {
+  workspaceId: string;
+  input: CreateFeedbackTagInput;
+}
+
+export interface UpdateFeedbackTagParams {
+  workspaceId: string;
+  tagId: string;
+  input: UpdateFeedbackTagInput;
+}
+
+export interface DeleteFeedbackTagParams {
+  workspaceId: string;
+  tagId: string;
 }
 
 export interface FeedbackVoteResult {
@@ -145,7 +232,7 @@ function isUniqueViolationError(error: unknown) {
   return "code" in error && error.code === "23505";
 }
 
-function slugifyTitle(value: string) {
+function slugifyValue(value: string, fallback: string) {
   const normalized = value
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -157,11 +244,32 @@ function slugifyTitle(value: string) {
     .replace(/^-|-$/g, "")
     .slice(0, 80);
 
-  return normalized || "post";
+  return normalized || fallback;
+}
+
+function slugifyTitle(value: string) {
+  return slugifyValue(value, "post");
+}
+
+function slugifyBoard(value: string) {
+  return slugifyValue(value, "board");
+}
+
+function slugifyTag(value: string) {
+  return slugifyValue(value, "tag");
+}
+
+function slugifyStatusKey(value: string) {
+  return slugifyValue(value.replaceAll("_", " "), "status").replaceAll(
+    "-",
+    "_",
+  );
 }
 
 const toPersistenceError = (operation: string) =>
   new FeedbackPersistenceError({ operation });
+
+const toConflictError = (message: string) => new FeedbackConflict({ message });
 
 const fromPersistencePromise = <A>(
   operation: string,
@@ -171,6 +279,46 @@ const fromPersistencePromise = <A>(
     try: thunk,
     catch: () => toPersistenceError(operation),
   });
+
+const DEFAULT_FEEDBACK_PUBLIC_SETTINGS: FeedbackPublicSettings = {
+  defaultSort: "top",
+  hideLeaderboard: false,
+  hideClosedStatuses: false,
+  hideAllStatuses: false,
+  allowPublicTagSelection: false,
+};
+
+function toFeedbackDefaultSort(
+  value: string | null | undefined,
+): FeedbackDefaultSort {
+  if (value === "new" || value === "trending") {
+    return value;
+  }
+
+  return "top";
+}
+
+function toFeedbackPublicSettings(
+  input: {
+    defaultSort: string | null;
+    hideLeaderboard: boolean | null;
+    hideClosedStatuses: boolean | null;
+    hideAllStatuses: boolean | null;
+    allowPublicTagSelection: boolean | null;
+  } | null,
+): FeedbackPublicSettings {
+  if (!input) {
+    return DEFAULT_FEEDBACK_PUBLIC_SETTINGS;
+  }
+
+  return {
+    defaultSort: toFeedbackDefaultSort(input.defaultSort),
+    hideLeaderboard: Boolean(input.hideLeaderboard),
+    hideClosedStatuses: Boolean(input.hideClosedStatuses),
+    hideAllStatuses: Boolean(input.hideAllStatuses),
+    allowPublicTagSelection: Boolean(input.allowPublicTagSelection),
+  };
+}
 
 const ALLOWED_CONTENT_TAGS = [
   "p",
@@ -429,6 +577,88 @@ const getPostCount = (workspaceId: string, postId: string) =>
     return post?.upvoteCount ?? null;
   });
 
+const getWorkspaceFeedbackPublicSettings = (workspaceId: string) =>
+  fromPersistencePromise(
+    "feedback.getWorkspaceFeedbackPublicSettings",
+    async () => {
+      const [settings] = await db
+        .select({
+          defaultSort: workspace.feedbackDefaultSort,
+          hideLeaderboard: workspace.feedbackHideLeaderboard,
+          hideClosedStatuses: workspace.feedbackHideClosedStatuses,
+          hideAllStatuses: workspace.feedbackHideAllStatuses,
+          allowPublicTagSelection: workspace.feedbackAllowPublicTagSelection,
+        })
+        .from(workspace)
+        .where(eq(workspace.id, workspaceId))
+        .limit(1);
+
+      return toFeedbackPublicSettings(settings ?? null);
+    },
+  );
+
+const listWorkspaceFeedbackTags = (workspaceId: string) =>
+  fromPersistencePromise("feedback.listWorkspaceFeedbackTags", async () => {
+    const tags = await db
+      .select({
+        id: feedbackTag.id,
+        name: feedbackTag.name,
+        slug: feedbackTag.slug,
+        color: feedbackTag.color,
+      })
+      .from(feedbackTag)
+      .where(eq(feedbackTag.workspaceId, workspaceId))
+      .orderBy(asc(feedbackTag.name), asc(feedbackTag.createdAt));
+
+    return tags satisfies FeedbackTagItem[];
+  });
+
+const listPostTagsByPostIds = (workspaceId: string, postIds: string[]) =>
+  fromPersistencePromise("feedback.listPostTagsByPostIds", async () => {
+    if (!postIds.length) {
+      return new Map<string, FeedbackTagItem[]>();
+    }
+
+    const rows = await db
+      .select({
+        postId: feedbackPostTag.postId,
+        id: feedbackTag.id,
+        name: feedbackTag.name,
+        slug: feedbackTag.slug,
+        color: feedbackTag.color,
+      })
+      .from(feedbackPostTag)
+      .innerJoin(
+        feedbackTag,
+        and(
+          eq(feedbackPostTag.workspaceId, feedbackTag.workspaceId),
+          eq(feedbackPostTag.tagId, feedbackTag.id),
+        ),
+      )
+      .where(
+        and(
+          eq(feedbackPostTag.workspaceId, workspaceId),
+          inArray(feedbackPostTag.postId, postIds),
+        ),
+      )
+      .orderBy(asc(feedbackTag.name));
+
+    const byPostId = new Map<string, FeedbackTagItem[]>();
+
+    for (const row of rows) {
+      const current = byPostId.get(row.postId) ?? [];
+      current.push({
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        color: row.color,
+      });
+      byPostId.set(row.postId, current);
+    }
+
+    return byPostId;
+  });
+
 const VOTE_SYNC_DONE_TTL_SECONDS = 60 * 60 * 24 * 30;
 const VOTE_SYNC_LOCK_TTL_SECONDS = 10;
 
@@ -519,6 +749,53 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
             },
           ),
       );
+      const getWorkspaceMemberBySlug = Effect.fn(
+        "FeedbackRepository.getWorkspaceMemberBySlug",
+      )(
+        ({
+          workspaceSlug,
+          userId,
+        }: FeedbackWorkspaceMembershipBySlugParams): Effect.Effect<
+          FeedbackWorkspaceMemberBySlugRecord | null,
+          FeedbackPersistenceError
+        > =>
+          fromPersistencePromise(
+            "feedback.getWorkspaceMemberBySlug",
+            async () => {
+              const [membership] = await db
+                .select({
+                  workspaceId: workspace.id,
+                  workspaceSlug: workspace.slug,
+                  workspaceName: workspace.name,
+                  role: workspaceMember.role,
+                })
+                .from(workspaceMember)
+                .innerJoin(
+                  workspace,
+                  eq(workspaceMember.workspaceId, workspace.id),
+                )
+                .where(
+                  and(
+                    eq(workspace.slug, workspaceSlug),
+                    eq(workspaceMember.userId, userId),
+                  ),
+                )
+                .limit(1);
+
+              return membership ?? null;
+            },
+          ),
+      );
+      const getWorkspacePublicSettings = Effect.fn(
+        "FeedbackRepository.getWorkspacePublicSettings",
+      )(
+        ({
+          workspaceId,
+        }: {
+          workspaceId: string;
+        }): Effect.Effect<FeedbackPublicSettings, FeedbackPersistenceError> =>
+          getWorkspaceFeedbackPublicSettings(workspaceId),
+      );
       const getSnapshot = Effect.fn("FeedbackRepository.getSnapshot")(
         ({
           workspaceId,
@@ -529,93 +806,102 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
           FeedbackPersistenceError
         > =>
           Effect.gen(function* () {
-            const { boards, statuses, posts } = yield* Effect.all(
-              {
-                boards: fromPersistencePromise(
-                  "feedback.getSnapshot.boards",
-                  () =>
-                    db
-                      .select({
-                        id: feedbackBoard.id,
-                        name: feedbackBoard.name,
-                        slug: feedbackBoard.slug,
-                        description: feedbackBoard.description,
-                        isDefault: feedbackBoard.isDefault,
-                      })
-                      .from(feedbackBoard)
-                      .where(eq(feedbackBoard.workspaceId, workspaceId))
-                      .orderBy(
-                        desc(feedbackBoard.isDefault),
-                        asc(feedbackBoard.createdAt),
-                      ),
-                ),
-                statuses: fromPersistencePromise(
-                  "feedback.getSnapshot.statuses",
-                  () =>
-                    db
-                      .select({
-                        id: feedbackStatus.id,
-                        key: feedbackStatus.key,
-                        label: feedbackStatus.label,
-                        color: feedbackStatus.color,
-                        position: feedbackStatus.position,
-                        isClosed: feedbackStatus.isClosed,
-                      })
-                      .from(feedbackStatus)
-                      .where(eq(feedbackStatus.workspaceId, workspaceId))
-                      .orderBy(asc(feedbackStatus.position)),
-                ),
-                posts: fromPersistencePromise(
-                  "feedback.getSnapshot.posts",
-                  () =>
-                    db
-                      .select({
-                        id: feedbackPost.id,
-                        boardId: feedbackPost.boardId,
-                        statusId: feedbackPost.statusId,
-                        title: feedbackPost.title,
-                        slug: feedbackPost.slug,
-                        content: feedbackPost.content,
-                        upvoteCount: feedbackPost.upvoteCount,
-                        commentCount: feedbackPost.commentCount,
-                        createdAt: feedbackPost.createdAt,
-                        statusLabel: feedbackStatus.label,
-                        statusKey: feedbackStatus.key,
-                        boardName: feedbackBoard.name,
-                      })
-                      .from(feedbackPost)
-                      .innerJoin(
-                        feedbackStatus,
-                        and(
-                          eq(
-                            feedbackPost.workspaceId,
-                            feedbackStatus.workspaceId,
-                          ),
-                          eq(feedbackPost.statusId, feedbackStatus.id),
+            const { boards, statuses, tags, settings, posts } =
+              yield* Effect.all(
+                {
+                  boards: fromPersistencePromise(
+                    "feedback.getSnapshot.boards",
+                    () =>
+                      db
+                        .select({
+                          id: feedbackBoard.id,
+                          name: feedbackBoard.name,
+                          slug: feedbackBoard.slug,
+                          description: feedbackBoard.description,
+                          isDefault: feedbackBoard.isDefault,
+                        })
+                        .from(feedbackBoard)
+                        .where(eq(feedbackBoard.workspaceId, workspaceId))
+                        .orderBy(
+                          desc(feedbackBoard.isDefault),
+                          asc(feedbackBoard.createdAt),
                         ),
-                      )
-                      .innerJoin(
-                        feedbackBoard,
-                        and(
-                          eq(
-                            feedbackPost.workspaceId,
-                            feedbackBoard.workspaceId,
+                  ),
+                  statuses: fromPersistencePromise(
+                    "feedback.getSnapshot.statuses",
+                    () =>
+                      db
+                        .select({
+                          id: feedbackStatus.id,
+                          key: feedbackStatus.key,
+                          label: feedbackStatus.label,
+                          color: feedbackStatus.color,
+                          position: feedbackStatus.position,
+                          isDefault: feedbackStatus.isDefault,
+                          isClosed: feedbackStatus.isClosed,
+                        })
+                        .from(feedbackStatus)
+                        .where(eq(feedbackStatus.workspaceId, workspaceId))
+                        .orderBy(asc(feedbackStatus.position)),
+                  ),
+                  tags: listWorkspaceFeedbackTags(workspaceId),
+                  settings: getWorkspaceFeedbackPublicSettings(workspaceId),
+                  posts: fromPersistencePromise(
+                    "feedback.getSnapshot.posts",
+                    () =>
+                      db
+                        .select({
+                          id: feedbackPost.id,
+                          boardId: feedbackPost.boardId,
+                          statusId: feedbackPost.statusId,
+                          title: feedbackPost.title,
+                          slug: feedbackPost.slug,
+                          content: feedbackPost.content,
+                          upvoteCount: feedbackPost.upvoteCount,
+                          commentCount: feedbackPost.commentCount,
+                          createdAt: feedbackPost.createdAt,
+                          statusLabel: feedbackStatus.label,
+                          statusKey: feedbackStatus.key,
+                          statusIsClosed: feedbackStatus.isClosed,
+                          boardName: feedbackBoard.name,
+                        })
+                        .from(feedbackPost)
+                        .innerJoin(
+                          feedbackStatus,
+                          and(
+                            eq(
+                              feedbackPost.workspaceId,
+                              feedbackStatus.workspaceId,
+                            ),
+                            eq(feedbackPost.statusId, feedbackStatus.id),
                           ),
-                          eq(feedbackPost.boardId, feedbackBoard.id),
+                        )
+                        .innerJoin(
+                          feedbackBoard,
+                          and(
+                            eq(
+                              feedbackPost.workspaceId,
+                              feedbackBoard.workspaceId,
+                            ),
+                            eq(feedbackPost.boardId, feedbackBoard.id),
+                          ),
+                        )
+                        .where(eq(feedbackPost.workspaceId, workspaceId))
+                        .orderBy(
+                          desc(feedbackPost.upvoteCount),
+                          desc(feedbackPost.createdAt),
                         ),
-                      )
-                      .where(eq(feedbackPost.workspaceId, workspaceId))
-                      .orderBy(
-                        desc(feedbackPost.upvoteCount),
-                        desc(feedbackPost.createdAt),
-                      ),
-                ),
-              },
-              { concurrency: "unbounded" },
-            );
+                  ),
+                },
+                { concurrency: "unbounded" },
+              );
 
             const postIds = posts.map((post) => post.id);
             let votedPostIds = new Set<string>();
+            const tagsByPostId = yield* listPostTagsByPostIds(
+              workspaceId,
+              postIds,
+            );
 
             if (postIds.length && (userId || anonSessionId)) {
               const votePredicate = userId
@@ -643,8 +929,11 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
             return {
               boards: boards satisfies FeedbackBoardItem[],
               statuses: statuses satisfies FeedbackStatusItem[],
+              tags: tags satisfies FeedbackTagItem[],
+              settings,
               posts: posts.map((post) => ({
                 ...post,
+                tags: tagsByPostId.get(post.id) ?? [],
                 viewerHasVoted: votedPostIds.has(post.id),
               })) satisfies FeedbackPostItem[],
             };
@@ -658,6 +947,7 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
         }: CreateFeedbackPostParams): Effect.Effect<
           FeedbackPostItem,
           | FeedbackInvalidBoard
+          | FeedbackInvalidTag
           | FeedbackNoBoardConfigured
           | FeedbackNoStatusConfigured
           | FeedbackSlugGenerationFailed
@@ -668,6 +958,7 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
             const statusId = yield* resolveStatusId(workspaceId);
             const baseSlug = slugifyTitle(input.title);
             const sanitizedContent = sanitizeFeedbackContent(input.content);
+            const requestedTagIds = [...new Set(input.tagIds)];
 
             const createdPostId = yield* Effect.tryPromise({
               try: async () => {
@@ -716,6 +1007,48 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
               },
             });
 
+            if (requestedTagIds.length) {
+              const existingTags = yield* fromPersistencePromise(
+                "feedback.createPost.validateTags",
+                () =>
+                  db
+                    .select({ id: feedbackTag.id })
+                    .from(feedbackTag)
+                    .where(
+                      and(
+                        eq(feedbackTag.workspaceId, workspaceId),
+                        inArray(feedbackTag.id, requestedTagIds),
+                      ),
+                    ),
+              );
+
+              const validTagIds = new Set(existingTags.map((tag) => tag.id));
+              const invalidTagId = requestedTagIds.find(
+                (tagId) => !validTagIds.has(tagId),
+              );
+
+              if (invalidTagId) {
+                return yield* new FeedbackInvalidTag({
+                  tagId: invalidTagId,
+                });
+              }
+
+              yield* fromPersistencePromise(
+                "feedback.createPost.insertTags",
+                () =>
+                  db
+                    .insert(feedbackPostTag)
+                    .values(
+                      requestedTagIds.map((tagId) => ({
+                        workspaceId,
+                        postId: createdPostId,
+                        tagId,
+                      })),
+                    )
+                    .onConflictDoNothing(),
+              );
+            }
+
             const createdPost = yield* fromPersistencePromise(
               "feedback.createPost.select",
               async () => {
@@ -732,6 +1065,7 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
                     createdAt: feedbackPost.createdAt,
                     statusLabel: feedbackStatus.label,
                     statusKey: feedbackStatus.key,
+                    statusIsClosed: feedbackStatus.isClosed,
                     boardName: feedbackBoard.name,
                   })
                   .from(feedbackPost)
@@ -755,6 +1089,9 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
                 return result ?? null;
               },
             );
+            const tagsByPostId = yield* listPostTagsByPostIds(workspaceId, [
+              createdPostId,
+            ]);
 
             if (!createdPost) {
               return yield* toPersistenceError(
@@ -764,6 +1101,7 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
 
             return {
               ...createdPost,
+              tags: tagsByPostId.get(createdPost.id) ?? [],
               viewerHasVoted: false,
             } satisfies FeedbackPostItem;
           }),
@@ -959,6 +1297,779 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
                   },
                 ]),
             );
+          }),
+      );
+      const listWorkspaceSettingsData = Effect.fn(
+        "FeedbackRepository.listWorkspaceSettingsData",
+      )(
+        ({
+          workspaceId,
+        }: FeedbackWorkspaceScopedParams): Effect.Effect<
+          Pick<FeedbackSnapshot, "boards" | "statuses" | "tags" | "settings">,
+          FeedbackPersistenceError
+        > =>
+          Effect.all(
+            {
+              boards: fromPersistencePromise(
+                "feedback.listWorkspaceSettingsData.boards",
+                () =>
+                  db
+                    .select({
+                      id: feedbackBoard.id,
+                      name: feedbackBoard.name,
+                      slug: feedbackBoard.slug,
+                      description: feedbackBoard.description,
+                      isDefault: feedbackBoard.isDefault,
+                    })
+                    .from(feedbackBoard)
+                    .where(eq(feedbackBoard.workspaceId, workspaceId))
+                    .orderBy(
+                      desc(feedbackBoard.isDefault),
+                      asc(feedbackBoard.createdAt),
+                    ),
+              ),
+              statuses: fromPersistencePromise(
+                "feedback.listWorkspaceSettingsData.statuses",
+                () =>
+                  db
+                    .select({
+                      id: feedbackStatus.id,
+                      key: feedbackStatus.key,
+                      label: feedbackStatus.label,
+                      color: feedbackStatus.color,
+                      position: feedbackStatus.position,
+                      isDefault: feedbackStatus.isDefault,
+                      isClosed: feedbackStatus.isClosed,
+                    })
+                    .from(feedbackStatus)
+                    .where(eq(feedbackStatus.workspaceId, workspaceId))
+                    .orderBy(asc(feedbackStatus.position)),
+              ),
+              tags: listWorkspaceFeedbackTags(workspaceId),
+              settings: getWorkspaceFeedbackPublicSettings(workspaceId),
+            },
+            { concurrency: "unbounded" },
+          ),
+      );
+      const updateWorkspacePublicSettings = Effect.fn(
+        "FeedbackRepository.updateWorkspacePublicSettings",
+      )(
+        ({
+          workspaceId,
+          input,
+        }: UpdateFeedbackPublicSettingsParams): Effect.Effect<
+          FeedbackPublicSettings,
+          FeedbackPersistenceError
+        > =>
+          fromPersistencePromise(
+            "feedback.updateWorkspacePublicSettings",
+            async () => {
+              const [updated] = await db
+                .update(workspace)
+                .set({
+                  feedbackDefaultSort: input.defaultSort,
+                  feedbackHideLeaderboard: input.hideLeaderboard,
+                  feedbackHideClosedStatuses: input.hideClosedStatuses,
+                  feedbackHideAllStatuses: input.hideAllStatuses,
+                  feedbackAllowPublicTagSelection:
+                    input.allowPublicTagSelection,
+                  updatedAt: new Date(),
+                })
+                .where(eq(workspace.id, workspaceId))
+                .returning({
+                  defaultSort: workspace.feedbackDefaultSort,
+                  hideLeaderboard: workspace.feedbackHideLeaderboard,
+                  hideClosedStatuses: workspace.feedbackHideClosedStatuses,
+                  hideAllStatuses: workspace.feedbackHideAllStatuses,
+                  allowPublicTagSelection:
+                    workspace.feedbackAllowPublicTagSelection,
+                });
+
+              return toFeedbackPublicSettings(updated ?? null);
+            },
+          ),
+      );
+      const createBoard = Effect.fn("FeedbackRepository.createBoard")(
+        ({
+          workspaceId,
+          input,
+        }: CreateFeedbackBoardParams): Effect.Effect<
+          FeedbackBoardItem,
+          FeedbackConflict | FeedbackPersistenceError
+        > =>
+          Effect.gen(function* () {
+            const [countRow] = yield* fromPersistencePromise(
+              "feedback.createBoard.count",
+              () =>
+                db
+                  .select({ count: sql<number>`count(*)::int` })
+                  .from(feedbackBoard)
+                  .where(eq(feedbackBoard.workspaceId, workspaceId)),
+            );
+            const makeDefault = (countRow?.count ?? 0) === 0;
+            const baseSlug = slugifyBoard(input.name);
+            const createdBoard = yield* Effect.tryPromise({
+              try: async () => {
+                for (let attempt = 0; attempt < 12; attempt += 1) {
+                  const slug =
+                    attempt === 0 ? baseSlug : `${baseSlug}-${attempt + 1}`;
+
+                  try {
+                    const [inserted] = await db
+                      .insert(feedbackBoard)
+                      .values({
+                        id: crypto.randomUUID(),
+                        workspaceId,
+                        name: input.name,
+                        slug,
+                        description: input.description,
+                        isDefault: makeDefault && attempt === 0,
+                      })
+                      .returning({
+                        id: feedbackBoard.id,
+                        name: feedbackBoard.name,
+                        slug: feedbackBoard.slug,
+                        description: feedbackBoard.description,
+                        isDefault: feedbackBoard.isDefault,
+                      });
+
+                    return inserted;
+                  } catch (error) {
+                    if (isUniqueViolationError(error)) {
+                      continue;
+                    }
+
+                    throw toPersistenceError("feedback.createBoard.insert");
+                  }
+                }
+
+                throw toConflictError("A board with this name already exists");
+              },
+              catch: (cause) => {
+                if (hasTag(cause, "FeedbackConflict")) {
+                  return cause as FeedbackConflict;
+                }
+
+                if (hasTag(cause, "FeedbackPersistenceError")) {
+                  return cause as FeedbackPersistenceError;
+                }
+
+                return toPersistenceError("feedback.createBoard.insert");
+              },
+            });
+
+            return createdBoard satisfies FeedbackBoardItem;
+          }),
+      );
+      const updateBoard = Effect.fn("FeedbackRepository.updateBoard")(
+        ({
+          workspaceId,
+          boardId,
+          input,
+        }: UpdateFeedbackBoardParams): Effect.Effect<
+          FeedbackBoardItem | null,
+          FeedbackConflict | FeedbackPersistenceError
+        > =>
+          Effect.gen(function* () {
+            const [existing] = yield* fromPersistencePromise(
+              "feedback.updateBoard.existing",
+              () =>
+                db
+                  .select({
+                    id: feedbackBoard.id,
+                    name: feedbackBoard.name,
+                    slug: feedbackBoard.slug,
+                  })
+                  .from(feedbackBoard)
+                  .where(
+                    and(
+                      eq(feedbackBoard.workspaceId, workspaceId),
+                      eq(feedbackBoard.id, boardId),
+                    ),
+                  )
+                  .limit(1),
+            );
+
+            if (!existing) {
+              return null;
+            }
+
+            const shouldChangeSlug = existing.name !== input.name;
+            const baseSlug = slugifyBoard(input.name);
+            return yield* Effect.tryPromise({
+              try: async () => {
+                for (let attempt = 0; attempt < 12; attempt += 1) {
+                  const slug = shouldChangeSlug
+                    ? attempt === 0
+                      ? baseSlug
+                      : `${baseSlug}-${attempt + 1}`
+                    : existing.slug;
+
+                  try {
+                    const [updated] = await db
+                      .update(feedbackBoard)
+                      .set({
+                        name: input.name,
+                        slug,
+                        description: input.description,
+                        updatedAt: new Date(),
+                      })
+                      .where(
+                        and(
+                          eq(feedbackBoard.workspaceId, workspaceId),
+                          eq(feedbackBoard.id, boardId),
+                        ),
+                      )
+                      .returning({
+                        id: feedbackBoard.id,
+                        name: feedbackBoard.name,
+                        slug: feedbackBoard.slug,
+                        description: feedbackBoard.description,
+                        isDefault: feedbackBoard.isDefault,
+                      });
+
+                    return updated ?? null;
+                  } catch (error) {
+                    if (isUniqueViolationError(error) && shouldChangeSlug) {
+                      continue;
+                    }
+
+                    throw toPersistenceError("feedback.updateBoard.update");
+                  }
+                }
+
+                throw toConflictError("A board with this name already exists");
+              },
+              catch: (cause) => {
+                if (hasTag(cause, "FeedbackConflict")) {
+                  return cause as FeedbackConflict;
+                }
+
+                if (hasTag(cause, "FeedbackPersistenceError")) {
+                  return cause as FeedbackPersistenceError;
+                }
+
+                return toPersistenceError("feedback.updateBoard.update");
+              },
+            });
+          }),
+      );
+      const deleteBoard = Effect.fn("FeedbackRepository.deleteBoard")(
+        ({
+          workspaceId,
+          boardId,
+        }: DeleteFeedbackBoardParams): Effect.Effect<
+          { boardId: string } | null,
+          FeedbackConflict | FeedbackPersistenceError
+        > =>
+          Effect.gen(function* () {
+            const existing = yield* fromPersistencePromise(
+              "feedback.deleteBoard.existing",
+              () =>
+                db
+                  .select({
+                    id: feedbackBoard.id,
+                    isDefault: feedbackBoard.isDefault,
+                  })
+                  .from(feedbackBoard)
+                  .where(
+                    and(
+                      eq(feedbackBoard.workspaceId, workspaceId),
+                      eq(feedbackBoard.id, boardId),
+                    ),
+                  )
+                  .limit(1),
+            );
+            const board = existing[0];
+
+            if (!board) {
+              return null;
+            }
+
+            const [countRow, postCountRow] = yield* Effect.all(
+              [
+                fromPersistencePromise("feedback.deleteBoard.count", () =>
+                  db
+                    .select({ count: sql<number>`count(*)::int` })
+                    .from(feedbackBoard)
+                    .where(eq(feedbackBoard.workspaceId, workspaceId)),
+                ),
+                fromPersistencePromise("feedback.deleteBoard.postCount", () =>
+                  db
+                    .select({ count: sql<number>`count(*)::int` })
+                    .from(feedbackPost)
+                    .where(
+                      and(
+                        eq(feedbackPost.workspaceId, workspaceId),
+                        eq(feedbackPost.boardId, boardId),
+                      ),
+                    ),
+                ),
+              ],
+              { concurrency: "unbounded" },
+            );
+
+            const boardCount = countRow[0]?.count ?? 0;
+            const postCount = postCountRow[0]?.count ?? 0;
+
+            if (boardCount <= 1) {
+              return yield* toConflictError("At least one board is required");
+            }
+
+            if (postCount > 0) {
+              return yield* toConflictError(
+                "You cannot delete a board that still has posts",
+              );
+            }
+
+            yield* fromPersistencePromise("feedback.deleteBoard.delete", () =>
+              db
+                .delete(feedbackBoard)
+                .where(
+                  and(
+                    eq(feedbackBoard.workspaceId, workspaceId),
+                    eq(feedbackBoard.id, boardId),
+                  ),
+                ),
+            );
+
+            if (board.isDefault) {
+              const [nextBoard] = yield* fromPersistencePromise(
+                "feedback.deleteBoard.nextDefault",
+                () =>
+                  db
+                    .select({ id: feedbackBoard.id })
+                    .from(feedbackBoard)
+                    .where(eq(feedbackBoard.workspaceId, workspaceId))
+                    .orderBy(asc(feedbackBoard.createdAt))
+                    .limit(1),
+              );
+
+              if (nextBoard) {
+                yield* fromPersistencePromise(
+                  "feedback.deleteBoard.assignDefault",
+                  () =>
+                    db
+                      .update(feedbackBoard)
+                      .set({ isDefault: true, updatedAt: new Date() })
+                      .where(
+                        and(
+                          eq(feedbackBoard.workspaceId, workspaceId),
+                          eq(feedbackBoard.id, nextBoard.id),
+                        ),
+                      ),
+                );
+              }
+            }
+
+            return { boardId };
+          }),
+      );
+      const createStatus = Effect.fn("FeedbackRepository.createStatus")(
+        ({
+          workspaceId,
+          input,
+        }: CreateFeedbackStatusParams): Effect.Effect<
+          FeedbackStatusItem,
+          FeedbackConflict | FeedbackPersistenceError
+        > =>
+          Effect.gen(function* () {
+            const [stats] = yield* fromPersistencePromise(
+              "feedback.createStatus.stats",
+              () =>
+                db
+                  .select({
+                    count: sql<number>`count(*)::int`,
+                    maxPosition: sql<number>`coalesce(max(${feedbackStatus.position}), -1)::int`,
+                  })
+                  .from(feedbackStatus)
+                  .where(eq(feedbackStatus.workspaceId, workspaceId)),
+            );
+            const nextPosition = (stats?.maxPosition ?? -1) + 1;
+            const isDefault = (stats?.count ?? 0) === 0;
+            const baseKey = slugifyStatusKey(input.label);
+            const createdStatus = yield* Effect.tryPromise({
+              try: async () => {
+                for (let attempt = 0; attempt < 12; attempt += 1) {
+                  const key =
+                    attempt === 0
+                      ? baseKey
+                      : `${baseKey}_${String(attempt + 1)}`;
+
+                  try {
+                    const [inserted] = await db
+                      .insert(feedbackStatus)
+                      .values({
+                        id: crypto.randomUUID(),
+                        workspaceId,
+                        key,
+                        label: input.label,
+                        color: input.color,
+                        position: nextPosition,
+                        isDefault,
+                        isClosed: input.isClosed,
+                      })
+                      .returning({
+                        id: feedbackStatus.id,
+                        key: feedbackStatus.key,
+                        label: feedbackStatus.label,
+                        color: feedbackStatus.color,
+                        position: feedbackStatus.position,
+                        isDefault: feedbackStatus.isDefault,
+                        isClosed: feedbackStatus.isClosed,
+                      });
+
+                    return inserted;
+                  } catch (error) {
+                    if (isUniqueViolationError(error)) {
+                      continue;
+                    }
+
+                    throw toPersistenceError("feedback.createStatus.insert");
+                  }
+                }
+
+                throw toConflictError("A status with this name already exists");
+              },
+              catch: (cause) => {
+                if (hasTag(cause, "FeedbackConflict")) {
+                  return cause as FeedbackConflict;
+                }
+
+                if (hasTag(cause, "FeedbackPersistenceError")) {
+                  return cause as FeedbackPersistenceError;
+                }
+
+                return toPersistenceError("feedback.createStatus.insert");
+              },
+            });
+
+            return createdStatus satisfies FeedbackStatusItem;
+          }),
+      );
+      const updateStatus = Effect.fn("FeedbackRepository.updateStatus")(
+        ({
+          workspaceId,
+          statusId,
+          input,
+        }: UpdateFeedbackStatusParams): Effect.Effect<
+          FeedbackStatusItem | null,
+          FeedbackPersistenceError
+        > =>
+          fromPersistencePromise("feedback.updateStatus", async () => {
+            const [updated] = await db
+              .update(feedbackStatus)
+              .set({
+                label: input.label,
+                color: input.color,
+                isClosed: input.isClosed,
+                updatedAt: new Date(),
+              })
+              .where(
+                and(
+                  eq(feedbackStatus.workspaceId, workspaceId),
+                  eq(feedbackStatus.id, statusId),
+                ),
+              )
+              .returning({
+                id: feedbackStatus.id,
+                key: feedbackStatus.key,
+                label: feedbackStatus.label,
+                color: feedbackStatus.color,
+                position: feedbackStatus.position,
+                isDefault: feedbackStatus.isDefault,
+                isClosed: feedbackStatus.isClosed,
+              });
+
+            return updated ?? null;
+          }),
+      );
+      const deleteStatus = Effect.fn("FeedbackRepository.deleteStatus")(
+        ({
+          workspaceId,
+          statusId,
+        }: DeleteFeedbackStatusParams): Effect.Effect<
+          { statusId: string } | null,
+          FeedbackConflict | FeedbackPersistenceError
+        > =>
+          Effect.gen(function* () {
+            const [existingStatus] = yield* fromPersistencePromise(
+              "feedback.deleteStatus.existing",
+              () =>
+                db
+                  .select({
+                    id: feedbackStatus.id,
+                    isDefault: feedbackStatus.isDefault,
+                  })
+                  .from(feedbackStatus)
+                  .where(
+                    and(
+                      eq(feedbackStatus.workspaceId, workspaceId),
+                      eq(feedbackStatus.id, statusId),
+                    ),
+                  )
+                  .limit(1),
+            );
+
+            if (!existingStatus) {
+              return null;
+            }
+
+            const [countRows, postCountRows] = yield* Effect.all(
+              [
+                fromPersistencePromise("feedback.deleteStatus.count", () =>
+                  db
+                    .select({ count: sql<number>`count(*)::int` })
+                    .from(feedbackStatus)
+                    .where(eq(feedbackStatus.workspaceId, workspaceId)),
+                ),
+                fromPersistencePromise("feedback.deleteStatus.postCount", () =>
+                  db
+                    .select({ count: sql<number>`count(*)::int` })
+                    .from(feedbackPost)
+                    .where(
+                      and(
+                        eq(feedbackPost.workspaceId, workspaceId),
+                        eq(feedbackPost.statusId, statusId),
+                      ),
+                    ),
+                ),
+              ],
+              { concurrency: "unbounded" },
+            );
+
+            const statusCount = countRows[0]?.count ?? 0;
+            const postCount = postCountRows[0]?.count ?? 0;
+
+            if (statusCount <= 1) {
+              return yield* toConflictError("At least one status is required");
+            }
+
+            if (postCount > 0) {
+              return yield* toConflictError(
+                "You cannot delete a status that is assigned to posts",
+              );
+            }
+
+            yield* fromPersistencePromise("feedback.deleteStatus.delete", () =>
+              db
+                .delete(feedbackStatus)
+                .where(
+                  and(
+                    eq(feedbackStatus.workspaceId, workspaceId),
+                    eq(feedbackStatus.id, statusId),
+                  ),
+                ),
+            );
+
+            if (existingStatus.isDefault) {
+              const [nextStatus] = yield* fromPersistencePromise(
+                "feedback.deleteStatus.nextDefault",
+                () =>
+                  db
+                    .select({ id: feedbackStatus.id })
+                    .from(feedbackStatus)
+                    .where(eq(feedbackStatus.workspaceId, workspaceId))
+                    .orderBy(asc(feedbackStatus.position))
+                    .limit(1),
+              );
+
+              if (nextStatus) {
+                yield* fromPersistencePromise(
+                  "feedback.deleteStatus.assignDefault",
+                  () =>
+                    db
+                      .update(feedbackStatus)
+                      .set({ isDefault: true, updatedAt: new Date() })
+                      .where(
+                        and(
+                          eq(feedbackStatus.workspaceId, workspaceId),
+                          eq(feedbackStatus.id, nextStatus.id),
+                        ),
+                      ),
+                );
+              }
+            }
+
+            return { statusId };
+          }),
+      );
+      const createTag = Effect.fn("FeedbackRepository.createTag")(
+        ({
+          workspaceId,
+          input,
+        }: CreateFeedbackTagParams): Effect.Effect<
+          FeedbackTagItem,
+          FeedbackConflict | FeedbackPersistenceError
+        > =>
+          Effect.gen(function* () {
+            const baseSlug = slugifyTag(input.name);
+            const createdTag = yield* Effect.tryPromise({
+              try: async () => {
+                for (let attempt = 0; attempt < 12; attempt += 1) {
+                  const slug =
+                    attempt === 0 ? baseSlug : `${baseSlug}-${attempt + 1}`;
+
+                  try {
+                    const [inserted] = await db
+                      .insert(feedbackTag)
+                      .values({
+                        id: crypto.randomUUID(),
+                        workspaceId,
+                        name: input.name,
+                        slug,
+                        color: input.color,
+                      })
+                      .returning({
+                        id: feedbackTag.id,
+                        name: feedbackTag.name,
+                        slug: feedbackTag.slug,
+                        color: feedbackTag.color,
+                      });
+
+                    return inserted;
+                  } catch (error) {
+                    if (isUniqueViolationError(error)) {
+                      continue;
+                    }
+
+                    throw toPersistenceError("feedback.createTag.insert");
+                  }
+                }
+
+                throw toConflictError("A tag with this name already exists");
+              },
+              catch: (cause) => {
+                if (hasTag(cause, "FeedbackConflict")) {
+                  return cause as FeedbackConflict;
+                }
+
+                if (hasTag(cause, "FeedbackPersistenceError")) {
+                  return cause as FeedbackPersistenceError;
+                }
+
+                return toPersistenceError("feedback.createTag.insert");
+              },
+            });
+
+            return createdTag satisfies FeedbackTagItem;
+          }),
+      );
+      const updateTag = Effect.fn("FeedbackRepository.updateTag")(
+        ({
+          workspaceId,
+          tagId,
+          input,
+        }: UpdateFeedbackTagParams): Effect.Effect<
+          FeedbackTagItem | null,
+          FeedbackConflict | FeedbackPersistenceError
+        > =>
+          Effect.gen(function* () {
+            const [existing] = yield* fromPersistencePromise(
+              "feedback.updateTag.existing",
+              () =>
+                db
+                  .select({
+                    id: feedbackTag.id,
+                    name: feedbackTag.name,
+                    slug: feedbackTag.slug,
+                  })
+                  .from(feedbackTag)
+                  .where(
+                    and(
+                      eq(feedbackTag.workspaceId, workspaceId),
+                      eq(feedbackTag.id, tagId),
+                    ),
+                  )
+                  .limit(1),
+            );
+
+            if (!existing) {
+              return null;
+            }
+
+            const shouldChangeSlug = existing.name !== input.name;
+            const baseSlug = slugifyTag(input.name);
+            return yield* Effect.tryPromise({
+              try: async () => {
+                for (let attempt = 0; attempt < 12; attempt += 1) {
+                  const slug = shouldChangeSlug
+                    ? attempt === 0
+                      ? baseSlug
+                      : `${baseSlug}-${attempt + 1}`
+                    : existing.slug;
+
+                  try {
+                    const [updated] = await db
+                      .update(feedbackTag)
+                      .set({
+                        name: input.name,
+                        slug,
+                        color: input.color,
+                      })
+                      .where(
+                        and(
+                          eq(feedbackTag.workspaceId, workspaceId),
+                          eq(feedbackTag.id, tagId),
+                        ),
+                      )
+                      .returning({
+                        id: feedbackTag.id,
+                        name: feedbackTag.name,
+                        slug: feedbackTag.slug,
+                        color: feedbackTag.color,
+                      });
+
+                    return updated ?? null;
+                  } catch (error) {
+                    if (isUniqueViolationError(error) && shouldChangeSlug) {
+                      continue;
+                    }
+
+                    throw toPersistenceError("feedback.updateTag.update");
+                  }
+                }
+
+                throw toConflictError("A tag with this name already exists");
+              },
+              catch: (cause) => {
+                if (hasTag(cause, "FeedbackConflict")) {
+                  return cause as FeedbackConflict;
+                }
+
+                if (hasTag(cause, "FeedbackPersistenceError")) {
+                  return cause as FeedbackPersistenceError;
+                }
+
+                return toPersistenceError("feedback.updateTag.update");
+              },
+            });
+          }),
+      );
+      const deleteTag = Effect.fn("FeedbackRepository.deleteTag")(
+        ({
+          workspaceId,
+          tagId,
+        }: DeleteFeedbackTagParams): Effect.Effect<
+          { tagId: string } | null,
+          FeedbackPersistenceError
+        > =>
+          fromPersistencePromise("feedback.deleteTag", async () => {
+            const [deleted] = await db
+              .delete(feedbackTag)
+              .where(
+                and(
+                  eq(feedbackTag.workspaceId, workspaceId),
+                  eq(feedbackTag.id, tagId),
+                ),
+              )
+              .returning({ id: feedbackTag.id });
+
+            if (!deleted) {
+              return null;
+            }
+
+            return { tagId: deleted.id };
           }),
       );
       const voteForPost = Effect.fn("FeedbackRepository.voteForPost")(
@@ -1373,11 +2484,24 @@ export class FeedbackRepository extends Effect.Service<FeedbackRepository>()(
       return {
         getWorkspaceAccess,
         getWorkspaceMembership,
+        getWorkspaceMemberBySlug,
+        getWorkspacePublicSettings,
         getSnapshot,
         createPost,
         uploadMedia,
         enforceVoteRateLimit,
         seedWorkspaceDefaults,
+        listWorkspaceSettingsData,
+        updateWorkspacePublicSettings,
+        createBoard,
+        updateBoard,
+        deleteBoard,
+        createStatus,
+        updateStatus,
+        deleteStatus,
+        createTag,
+        updateTag,
+        deleteTag,
         voteForPost,
         unvoteForPost,
         listComments,

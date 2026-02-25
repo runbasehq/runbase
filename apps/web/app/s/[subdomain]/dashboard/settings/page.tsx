@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { IconGlobe } from "@/components/icons/icon-globe";
 import { IconPeople } from "@/components/icons/icon-people";
+import { IconRoadmap } from "@/components/icons/icon-roadmap";
 
 const settingsItems = [
   {
@@ -15,6 +16,12 @@ const settingsItems = [
     title: "Team",
     description: "Invite members and manage permissions.",
     icon: IconPeople,
+  },
+  {
+    href: "/dashboard/settings/feedback-roadmap",
+    title: "Feedback & roadmap",
+    description: "Manage tags, boards, statuses, and public board behavior.",
+    icon: IconRoadmap,
   },
 ];
 
@@ -33,7 +40,7 @@ export default function DashboardSettingsPage() {
         </p>
       </div>
 
-      <div className="grid w-full max-w-3xl gap-3 md:grid-cols-2">
+      <div className="grid w-full max-w-4xl gap-3 md:grid-cols-2">
         {settingsItems.map((item) => (
           <Link
             key={item.href}

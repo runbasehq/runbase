@@ -17,8 +17,10 @@ import { protocol, rootDomain } from "@/lib/utils";
 import { PublicFeedbackPage } from "~/feedback/components/public-feedback-page";
 import type {
   FeedbackBoardItem,
+  FeedbackPublicSettings,
   FeedbackPostItem,
   FeedbackStatusItem,
+  FeedbackTagItem,
 } from "~/feedback/lib/types";
 import {
   DEFAULT_WORKSPACE_PUBLIC_THEME,
@@ -116,6 +118,7 @@ function validateThemeMediaFile(
 interface WorkspaceThemePreviewData {
   initialPosts: FeedbackPostItem[];
   isAuthenticated: boolean;
+  isWorkspaceMember: boolean;
   viewer: {
     name: string | null;
     email: string | null;
@@ -124,7 +127,12 @@ interface WorkspaceThemePreviewData {
   isWorkspaceOwner: boolean;
   githubAuthEnabled: boolean;
   defaultBoard: Pick<FeedbackBoardItem, "id" | "name"> | null;
-  defaultStatus: Pick<FeedbackStatusItem, "id" | "key" | "label"> | null;
+  defaultStatus: Pick<
+    FeedbackStatusItem,
+    "id" | "key" | "label" | "isClosed"
+  > | null;
+  tags: FeedbackTagItem[];
+  settings: FeedbackPublicSettings;
 }
 
 function CompactColorControl({
@@ -603,11 +611,14 @@ export function WorkspaceThemeEditor({
           editorTopOffsetPx={editorToolbarHeight}
           initialPosts={previewData.initialPosts}
           isAuthenticated={previewData.isAuthenticated}
+          isWorkspaceMember={previewData.isWorkspaceMember}
           viewer={previewData.viewer}
           isWorkspaceOwner={previewData.isWorkspaceOwner}
           githubAuthEnabled={previewData.githubAuthEnabled}
           defaultBoard={previewData.defaultBoard}
           defaultStatus={previewData.defaultStatus}
+          tags={previewData.tags}
+          settings={previewData.settings}
         />
       </motion.div>
     </section>

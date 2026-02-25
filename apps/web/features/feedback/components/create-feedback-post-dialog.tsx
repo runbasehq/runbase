@@ -8,6 +8,7 @@ import {
   Attachment01Icon,
   Calendar03Icon,
   Cancel01Icon,
+  EyeIcon,
   Image01Icon,
   Link01Icon,
   PlusSignIcon,
@@ -42,6 +43,7 @@ import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 
 import { IconPlusCircle } from "@/components/icons/icon-plus-circle";
+import { IconSearch } from "@/components/icons/icon-search";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -61,6 +63,7 @@ import type {
   FeedbackMediaType,
   FeedbackPostItem,
   FeedbackStatusItem,
+  FeedbackTagItem,
   FeedbackUploadedMedia,
 } from "~/feedback/lib/types";
 import { postsQueryKeys } from "~/posts/lib/query-keys";
@@ -68,13 +71,16 @@ import { postsQueryKeys } from "~/posts/lib/query-keys";
 interface CreateFeedbackPostDialogProps {
   workspaceSlug: string;
   defaultBoard: Pick<FeedbackBoardItem, "id" | "name">;
-  defaultStatus: Pick<FeedbackStatusItem, "id" | "key" | "label">;
+  defaultStatus: Pick<FeedbackStatusItem, "id" | "key" | "label" | "isClosed">;
+  availableTags: FeedbackTagItem[];
+  canAssignTags: boolean;
   viewer?: {
     name: string | null;
     email: string | null;
     image: string | null;
   } | null;
   onUnauthorized?: () => void;
+  onPostCreated?: (post: FeedbackPostItem) => void;
 }
 
 interface CreatePostResponse {
@@ -381,13 +387,18 @@ export function CreateFeedbackPostDialog({
   workspaceSlug,
   defaultBoard,
   defaultStatus,
+  availableTags,
+  canAssignTags,
   viewer,
   onUnauthorized,
+  onPostCreated,
 }: CreateFeedbackPostDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [createMore, setCreateMore] = useState(false);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [isTagPickerOpen, setIsTagPickerOpen] = useState(false);
+  const [tagSearchQuery, setTagSearchQuery] = useState("");
   const [emojiPickerData, setEmojiPickerData] = useState<Record<
     string,
     unknown
@@ -396,10 +407,12 @@ export function CreateFeedbackPostDialog({
   const [editorHtml, setEditorHtml] = useState("<p></p>");
   const [isEditorFocused, setIsEditorFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const queryClient = useQueryClient();
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
+  const tagPickerRef = useRef<HTMLDivElement | null>(null);
   const emojiTriggerRef = useRef<HTMLButtonElement | null>(null);
   const emojiPickerRef = useRef<HTMLDivElement | null>(null);
   const [emojiPickerPosition, setEmojiPickerPosition] = useState<{
@@ -477,7 +490,7 @@ export function CreateFeedbackPostDialog({
   const createPost = useMutation<
     FeedbackPostItem,
     Error,
-    { title: string; content: string },
+    { title: string; content: string; tagIds: string[] },
     { previousPosts?: FeedbackPostItem[]; optimisticId: string }
   >({
     mutationKey: ["posts", workspaceSlug, "create"],
@@ -527,7 +540,9 @@ export function CreateFeedbackPostDialog({
         createdAt: new Date(),
         statusLabel: defaultStatus.label,
         statusKey: defaultStatus.key,
+        statusIsClosed: defaultStatus.isClosed,
         boardName: defaultBoard.name,
+        tags: availableTags.filter((tag) => input.tagIds.includes(tag.id)),
         viewerHasVoted: false,
       };
 
@@ -573,10 +588,15 @@ export function CreateFeedbackPostDialog({
         post,
       );
 
+      onPostCreated?.(post);
+
       setTitle("");
       editor?.commands.setContent("<p></p>");
       setEditorHtml("<p></p>");
+      setIsTagPickerOpen(false);
+      setTagSearchQuery("");
       setIsEmojiPickerOpen(false);
+      setSelectedTagIds([]);
       if (!createMore) {
         setIsOpen(false);
       }
@@ -638,6 +658,17 @@ export function CreateFeedbackPostDialog({
       isEmpty: !text.length && !hasMedia,
     };
   }, [editorHtml]);
+
+  const filteredTagOptions = useMemo(() => {
+    const query = tagSearchQuery.trim().toLowerCase();
+    if (!query.length) {
+      return availableTags;
+    }
+
+    return availableTags.filter((tag) =>
+      tag.name.toLowerCase().includes(query),
+    );
+  }, [availableTags, tagSearchQuery]);
 
   const loadEmojiPickerData = useCallback(() => {
     if (emojiPickerData || isEmojiDataLoading) {
@@ -751,13 +782,48 @@ export function CreateFeedbackPostDialog({
     };
   }, [isEmojiPickerOpen, updateEmojiPickerPosition]);
 
+  useEffect(() => {
+    if (!isTagPickerOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+
+      if (tagPickerRef.current?.contains(target)) {
+        return;
+      }
+
+      setIsTagPickerOpen(false);
+      setTagSearchQuery("");
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsTagPickerOpen(false);
+        setTagSearchQuery("");
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isTagPickerOpen]);
+
   function closeDialog() {
     if (isBusy) {
       return;
     }
 
     setError(null);
+    setIsTagPickerOpen(false);
+    setTagSearchQuery("");
     setIsEmojiPickerOpen(false);
+    setSelectedTagIds([]);
     setIsOpen(false);
   }
 
@@ -767,6 +833,8 @@ export function CreateFeedbackPostDialog({
       return;
     }
 
+    setIsTagPickerOpen(false);
+    setTagSearchQuery("");
     setIsEmojiPickerOpen(false);
     setIsOpen(true);
   }
@@ -794,6 +862,7 @@ export function CreateFeedbackPostDialog({
       .mutateAsync({
         title: normalizedTitle,
         content: contentHtml,
+        tagIds: selectedTagIds,
       })
       .catch(() => undefined);
   }
@@ -964,6 +1033,20 @@ export function CreateFeedbackPostDialog({
 
   function toggleCreateMore() {
     setCreateMore((value) => !value);
+  }
+
+  function setTagSelection(tagId: string, checked: boolean) {
+    setSelectedTagIds((currentTagIds) => {
+      if (checked) {
+        if (currentTagIds.includes(tagId)) {
+          return currentTagIds;
+        }
+
+        return [...currentTagIds, tagId];
+      }
+
+      return currentTagIds.filter((currentTagId) => currentTagId !== tagId);
+    });
   }
 
   function toggleEmojiPicker() {
@@ -1417,83 +1500,187 @@ export function CreateFeedbackPostDialog({
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.18, delay: 0.04 }}
-              className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-4 py-2"
+              className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-4 py-1"
             >
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800">
-                  <span className="mr-2 inline-flex size-2 rounded-full bg-sky-500" />
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="inline-flex h-7 items-center rounded-full border border-slate-200 bg-white px-2.5 text-[13px] font-semibold text-slate-800">
+                  <span className="mr-1.5 inline-flex size-1.5 rounded-full bg-sky-500" />
                   {defaultStatus.label}
                 </span>
+                {canAssignTags && availableTags.length > 0 ? (
+                  <div ref={tagPickerRef} className="relative">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        "h-7 rounded-full border-slate-200 bg-white px-2.5 text-[13px] font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-800",
+                        selectedTagIds.length > 0 &&
+                          "border-slate-300 bg-slate-50 text-slate-800",
+                      )}
+                      onClick={() =>
+                        setIsTagPickerOpen((current) => {
+                          const next = !current;
+                          if (next) {
+                            setTagSearchQuery("");
+                          }
+                          return next;
+                        })
+                      }
+                      aria-expanded={isTagPickerOpen}
+                      aria-label="Select tags"
+                    >
+                      <HugeiconsIcon
+                        icon={Tag01Icon}
+                        strokeWidth={2}
+                        className="size-3.5 shrink-0"
+                      />
+                      <span>
+                        {selectedTagIds.length
+                          ? `${selectedTagIds.length} tag${selectedTagIds.length > 1 ? "s" : ""}`
+                          : "Tags"}
+                      </span>
+                    </Button>
+                    {isTagPickerOpen ? (
+                      <div className="absolute bottom-[calc(100%+8px)] left-0 z-40 w-[240px] overflow-hidden rounded-[11px] border border-slate-200 bg-white shadow-[0_18px_32px_-20px_rgba(17,18,20,0.45)]">
+                        <div className="relative border-b border-slate-200 px-3 py-2">
+                          <IconSearch className="pointer-events-none absolute top-1/2 left-5 size-3.5 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            value={tagSearchQuery}
+                            onChange={(event) =>
+                              setTagSearchQuery(event.target.value)
+                            }
+                            placeholder="Search tag..."
+                            className="h-8 w-full rounded-[8px] border border-slate-200 bg-slate-50 pl-8 pr-2 text-[13px] font-medium text-slate-700 placeholder:text-slate-400 outline-none"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between border-b border-slate-200 px-3 py-1.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                            Public tags
+                          </p>
+                          <HugeiconsIcon
+                            icon={EyeIcon}
+                            strokeWidth={2}
+                            className="size-3.5 text-slate-400"
+                            aria-hidden
+                          />
+                        </div>
+                        <div className="max-h-44 overflow-y-auto p-1.5">
+                          {filteredTagOptions.length ? (
+                            filteredTagOptions.map((tag) => {
+                              const checked = selectedTagIds.includes(tag.id);
+
+                              return (
+                                <button
+                                  key={tag.id}
+                                  type="button"
+                                  onClick={() =>
+                                    setTagSelection(tag.id, !checked)
+                                  }
+                                  aria-pressed={checked}
+                                  className={cn(
+                                    "flex h-8 w-full items-center gap-2 rounded-[9px] px-2.5 text-left text-[13px] font-semibold text-slate-700 transition-colors hover:bg-slate-50",
+                                    checked && "bg-slate-100",
+                                  )}
+                                >
+                                  {tag.color ? (
+                                    <span
+                                      className="size-2 rounded-full"
+                                      style={{ backgroundColor: tag.color }}
+                                    />
+                                  ) : (
+                                    <span className="size-2 rounded-full bg-slate-300" />
+                                  )}
+                                  <span className="min-w-0 flex-1 truncate">
+                                    {tag.name}
+                                  </span>
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <p className="px-2 py-3 text-xs font-medium text-slate-500">
+                              No tags found.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    disabled
+                    className="size-7 rounded-full border-slate-200 bg-white text-slate-500"
+                    aria-label="Set tags"
+                  >
+                    <HugeiconsIcon
+                      icon={Tag01Icon}
+                      strokeWidth={2}
+                      className="size-3.5"
+                    />
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="outline"
-                  size="icon-sm"
+                  size="icon"
                   disabled={isBusy}
-                  className="text-slate-500"
-                  aria-label="Set tags"
-                >
-                  <HugeiconsIcon
-                    icon={Tag01Icon}
-                    strokeWidth={2}
-                    className="size-4"
-                  />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={isBusy}
-                  className="text-slate-500"
+                  className="size-7 rounded-full border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700"
                   aria-label="Set owner"
                 >
                   <HugeiconsIcon
                     icon={UserIcon}
                     strokeWidth={2}
-                    className="size-4"
+                    className="size-3.5"
                   />
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  size="icon-sm"
+                  size="icon"
                   disabled={isBusy}
-                  className="text-slate-500"
+                  className="size-7 rounded-full border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700"
                   aria-label="Set due date"
                 >
                   <HugeiconsIcon
                     icon={Calendar03Icon}
                     strokeWidth={2}
-                    className="size-4"
+                    className="size-3.5"
                   />
                 </Button>
               </div>
 
-              <div className="ml-auto flex flex-wrap items-center gap-3">
+              <div className="ml-auto flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   role="switch"
                   aria-checked={createMore}
                   onClick={toggleCreateMore}
                   disabled={isBusy}
-                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
-                    createMore ? "bg-indigo-600" : "bg-slate-300"
-                  }`}
+                  className={cn(
+                    "relative inline-flex h-6 w-10 items-center rounded-full border border-transparent transition-colors",
+                    createMore ? "bg-[#8f9cf4]" : "bg-slate-300",
+                  )}
                   aria-label="Create more after submit"
                 >
                   <span
-                    className={`inline-block size-5 rounded-full bg-white transition ${
-                      createMore ? "translate-x-6" : "translate-x-1"
-                    }`}
+                    className={cn(
+                      "inline-block size-4 rounded-full bg-white shadow-[0_1px_2px_rgba(17,18,20,0.2)] transition-transform",
+                      createMore ? "translate-x-5" : "translate-x-1",
+                    )}
                   />
                 </button>
-                <span className="text-sm font-medium text-slate-600">
+                <span className="text-[13px] font-semibold text-slate-600">
                   Create more
                 </span>
                 <Button
                   type="submit"
                   variant="outline"
                   size="sm"
-                  className="h-9 rounded-xl border-[#4458ec] bg-[#4458ec] px-5 text-sm font-semibold text-white hover:bg-[#3d50df] hover:text-white"
+                  className="h-8 rounded-[11px] border-[#8f9cf4] bg-[#8f9cf4] px-5 text-[13px] font-semibold text-white hover:border-[#828ff0] hover:bg-[#828ff0] hover:text-white"
                   disabled={
                     isBusy || !title.trim().length || editorMeta.isEmpty
                   }
