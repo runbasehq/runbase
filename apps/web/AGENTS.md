@@ -61,6 +61,14 @@
 - Prefer server-loaded initial data and pass it as `initialData` to TanStack Query hooks.
 - Mutations MUST invalidate/update related query keys.
 
+## Axiom Logging
+
+- Backend OAuth logs use `lib/axiom-server.ts`.
+- Routes should create logger with `createAxiomLogger(source, baseFields?)`.
+- Routes should pass logger into service methods that need logs.
+- Services should log with `log.debug/info/warn/error(...)` and avoid raw `console.*`.
+- Routes must call `await log.flush()` in `finally` blocks.
+
 ## SVG Icon Rules (apps/web)
 
 - Place app icons in `components/icons`.
