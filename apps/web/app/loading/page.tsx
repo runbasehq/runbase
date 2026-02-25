@@ -52,6 +52,7 @@ export default async function LoadingPage({
       authState={authState}
       authType={authType}
       oid={oid}
+      handoffDone={false}
     />
   );
 }
