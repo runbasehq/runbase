@@ -31,7 +31,8 @@
         "POLAR_PRODUCT_ID_GROWTH_YEARLY",
         "POLAR_PRODUCT_ID_PROFESSIONAL_MONTHLY",
         "POLAR_PRODUCT_ID_PROFESSIONAL_YEARLY",
-        "POLAR_PRODUCT_ID_ENTERPRISE"
+        "POLAR_PRODUCT_ID_ENTERPRISE",
+        "OAUTH_DEBUG_LOGS"
       ],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]

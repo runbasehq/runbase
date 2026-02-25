@@ -11,6 +11,7 @@ import {
 import { OAuthHandoffRepository } from "./oauth-handoff.repository";
 
 const HANDOFF_TTL_SECONDS = 60;
+const debug = process.env.OAUTH_DEBUG_LOGS === "true";
 
 const readSafeOrigin = (origin: string | null | undefined) =>
   Effect.tryPromise({
@@ -99,6 +100,15 @@ export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
         }) =>
           Effect.gen(function* () {
             const safeTargetOrigin = yield* readSafeOrigin(targetOrigin);
+
+            if (debug) {
+              console.info("[oauth] service.createHandoff", {
+                targetOrigin,
+                safeTargetOrigin,
+                allowed: Boolean(safeTargetOrigin),
+              });
+            }
+
             if (!safeTargetOrigin) {
               return yield* new OAuthHandoffForbidden({
                 message: "Target origin is not allowed",
@@ -110,6 +120,16 @@ export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
               cookies,
               getSessionCookieCandidates(),
             );
+
+            if (debug) {
+              console.info("[oauth] service.cookieScan", {
+                cookieCount: cookies.length,
+                cookieNames: cookies.map((c) => c.name),
+                sessionCookieFound: Boolean(sessionCookie),
+                sessionCookieName: sessionCookie?.name || null,
+              });
+            }
+
             if (!sessionCookie) {
               return yield* new OAuthHandoffUnauthorized({});
             }
@@ -135,6 +155,14 @@ export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
               },
             });
 
+            if (debug) {
+              console.info("[oauth] service.codeCreated", {
+                codePrefix: code.slice(0, 8),
+                targetOrigin: safeTargetOrigin,
+                ttl: HANDOFF_TTL_SECONDS,
+              });
+            }
+
             const handoffUrl = new URL(
               "/api/auth/session-transfer/complete",
               safeTargetOrigin,
@@ -151,6 +179,16 @@ export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
         ({ code, currentOrigin }: { code: string; currentOrigin: string }) =>
           Effect.gen(function* () {
             const safeCurrentOrigin = yield* readSafeOrigin(currentOrigin);
+
+            if (debug) {
+              console.info("[oauth] service.consumeHandoff", {
+                codePrefix: code.slice(0, 8),
+                currentOrigin,
+                safeCurrentOrigin,
+                allowed: Boolean(safeCurrentOrigin),
+              });
+            }
+
             if (!safeCurrentOrigin) {
               return yield* new OAuthHandoffForbidden({
                 message: "Current origin is not allowed",
@@ -159,7 +197,34 @@ export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
 
             const handoff = yield* repository.consumeCode({ code });
 
-            if (handoff.targetOrigin !== safeCurrentOrigin) {
+            if (debug) {
+              console.info("[oauth] service.consumedPayload", {
+                codePrefix: code.slice(0, 8),
+                payloadKeys: Object.keys(handoff),
+                targetOrigin: handoff.targetOrigin,
+                openerOrigin: handoff.openerOrigin,
+                returnTo: handoff.returnTo,
+                sessionCookieName: handoff.sessionCookieName,
+                hasSessionValue: Boolean(handoff.sessionCookieValue),
+                sessionValueLen: handoff.sessionCookieValue?.length || 0,
+                authState: handoff.authState
+                  ? handoff.authState.slice(0, 8) + "..."
+                  : null,
+              });
+            }
+
+            const originMatch = handoff.targetOrigin === safeCurrentOrigin;
+
+            if (debug) {
+              console.info("[oauth] service.originCheck", {
+                codePrefix: code.slice(0, 8),
+                targetOrigin: handoff.targetOrigin,
+                safeCurrentOrigin,
+                originMatch,
+              });
+            }
+
+            if (!originMatch) {
               return yield* new OAuthHandoffForbidden({
                 message: "Handoff code does not match this origin",
               });
