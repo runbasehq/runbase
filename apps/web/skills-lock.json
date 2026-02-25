@@ -1,10 +1,35 @@
 {
   "version": 1,
   "skills": {
+    "axiom-sre": {
+      "source": "axiomhq/skills",
+      "sourceType": "github",
+      "computedHash": "cfbe0f4d96064473da6f96526feb98628d838bae9d7823a4a7f1471ecae850c4"
+    },
+    "building-dashboards": {
+      "source": "axiomhq/skills",
+      "sourceType": "github",
+      "computedHash": "7d4edeecbcf0835e3ebf2f783b7a959f19d73df86cd82f40f80aebc020139748"
+    },
+    "controlling-costs": {
+      "source": "axiomhq/skills",
+      "sourceType": "github",
+      "computedHash": "4c1658c403f64528c74d8641525f5a6eecfe613e72f0688abdb9fc670925223e"
+    },
+    "query-metrics": {
+      "source": "axiomhq/skills",
+      "sourceType": "github",
+      "computedHash": "7a4973c4f7e5efd1d033b9c4f42ba3376fcc0b3d24ec0ec6f716607776750acd"
+    },
     "resend": {
       "source": "resend/resend-skills",
       "sourceType": "github",
       "computedHash": "318cfafb6bb004da64d0eac0349d99997b8b1c75e55870a4104dff9b5ff4ee3d"
+    },
+    "spl-to-apl": {
+      "source": "axiomhq/skills",
+      "sourceType": "github",
+      "computedHash": "1635ec3ba503df5d5a284e6bd84567aaf3d606e956a2ffa8f6f263df99664f60"
     }
   }
 }

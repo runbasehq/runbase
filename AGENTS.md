@@ -123,3 +123,11 @@ For `apps/web`, organize domain code under `features/<feature-name>/...`.
 - Do not use CSS `clamp()`.
 - Always prioritize Tailwind CSS utility directives/classes for styling.
 - For UI entrance/interaction animation in `apps/web`, use `motion/react`.
+
+## Axiom Logging (apps/web)
+
+- Backend OAuth logs use `apps/web/lib/axiom-server.ts`.
+- Routes should create logger with `createAxiomLogger(source, baseFields?)`.
+- Routes should pass logger into service methods that need logs.
+- Services should log with `log.debug/info/warn/error(...)` and avoid raw `console.*`.
+- Routes must call `await log.flush()` in `finally` blocks.

@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# Axiom APL query helper - reads query from stdin
+#
+# Usage: axiom-query <deployment> [options] <<< "query"
+#
+# Options:
+#   --raw     Output raw API response (columnar JSON)
+#   --ndjson  Output Newline Delimited JSON (row-oriented)
+#   --full    Do not truncate values in text output
+#   --trace   Print x-axiom-trace-id on success
+#
+# Examples:
+#   # Simple query
+#   axiom-query prod <<< "['logs'] | take 5"
+#
+#   # JSON processing
+#   axiom-query prod --ndjson <<< "['logs'] | take 5" | jq -c '.status'
+#
+#   # Raw API output
+#   axiom-query prod --raw <<< "['logs']"
+
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+  echo "Usage: axiom-query <deployment> [options] <<< 'query'" >&2
+  exit 1
+fi
+
+DEPLOYMENT="$1"
+shift
+
+FMT_ARGS=""
+PRINT_TRACE=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --raw)
+      FMT_ARGS="$FMT_ARGS --raw"
+      shift
+      ;;
+    --ndjson)
+      FMT_ARGS="$FMT_ARGS --ndjson"
+      shift
+      ;;
+    --full)
+      FMT_ARGS="$FMT_ARGS --full"
+      shift
+      ;;
+    --trace)
+      PRINT_TRACE=true
+      shift
+      ;;
+    *)
+      echo "Error: Unknown argument '$1'. Queries must be passed via stdin." >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -t 0 ]]; then
+  echo "Error: No query provided. Pipe a query to stdin." >&2
+  echo "" >&2
+  echo "Examples:" >&2
+  echo "  axiom-query $DEPLOYMENT <<< \"['logs'] | take 5\"" >&2
+  exit 1
+fi
+
+APL=$(cat)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APL_JSON=$(printf '%s' "$APL" | jq -Rs .)
+
+# Load config from unified config file
+# shellcheck disable=SC1090
+eval "$("$SCRIPT_DIR/config" axiom "$DEPLOYMENT")"
+
+RESP_HEADERS=$(mktemp)
+RESP_BODY=$(mktemp)
+cleanup() {
+  rm -f "$RESP_HEADERS" "$RESP_BODY"
+}
+trap cleanup EXIT
+
+# Execute query and pipe to formatter
+HTTP_CODE=$(curl -sS -o "$RESP_BODY" -D "$RESP_HEADERS" -w "%{http_code}" \
+  -X POST "$AXIOM_URL/v1/datasets/_apl?format=tabular" \
+  -H "Authorization: Bearer $AXIOM_TOKEN" \
+  -H "X-Axiom-Org-Id: $AXIOM_ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d "{\"apl\": $APL_JSON}")
+
+if [[ "$HTTP_CODE" -lt 200 || "$HTTP_CODE" -ge 300 ]]; then
+  msg=$(jq -r '.message // empty' "$RESP_BODY" 2>/dev/null)
+  trace=$(grep -i '^x-axiom-trace-id:' "$RESP_HEADERS" | tail -1 | awk '{print $2}' | tr -d '\r')
+  echo "error: ${msg:-http $HTTP_CODE}" >&2
+  if [[ -n "$trace" ]]; then
+    echo "trace_id: $trace" >&2
+  fi
+  exit 1
+fi
+
+if [[ "$PRINT_TRACE" == true ]]; then
+  trace=$(grep -i '^x-axiom-trace-id:' "$RESP_HEADERS" | tail -1 | awk '{print $2}' | tr -d '\r')
+  if [[ -n "$trace" ]]; then
+    echo "trace_id: $trace" >&2
+  fi
+fi
+
+cat "$RESP_BODY" | "$SCRIPT_DIR/axiom-query-fmt" $FMT_ARGS

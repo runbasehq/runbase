@@ -85,6 +85,11 @@ export class OAuthHandoffRepository extends Effect.Service<OAuthHandoffRepositor
               return yield* new OAuthHandoffCodeNotFound({});
             }
 
+            // Upstash auto-deserializes JSON — handle both string and object
+            if (typeof stored === "object") {
+              return stored as unknown as OAuthHandoffPayload;
+            }
+
             try {
               return JSON.parse(stored) as OAuthHandoffPayload;
             } catch {

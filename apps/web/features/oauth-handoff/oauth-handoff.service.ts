@@ -2,25 +2,16 @@ import "server-only";
 
 import { Effect } from "effect";
 
-import {
-  getSafeServerAuthRedirect,
-  getSafeServerOrigin,
-} from "~/auth/lib/safe-auth-redirect.server";
+import type { AxiomLogger } from "@/lib/axiom-server";
+import { getSafeServerOrigin } from "~/auth/lib/safe-auth-redirect.server";
 
 import {
   OAuthHandoffForbidden,
-  OAuthHandoffInvalidInput,
   OAuthHandoffUnauthorized,
 } from "./oauth-handoff.errors";
 import { OAuthHandoffRepository } from "./oauth-handoff.repository";
 
 const HANDOFF_TTL_SECONDS = 60;
-
-const readSafeRedirect = (target: string | null | undefined) =>
-  Effect.tryPromise({
-    try: () => getSafeServerAuthRedirect(target),
-    catch: () => null,
-  });
 
 const readSafeOrigin = (origin: string | null | undefined) =>
   Effect.tryPromise({
@@ -49,10 +40,19 @@ function parseCookies(cookieHeader: string | null | undefined): CookieEntry[] {
       }
 
       const name = chunk.slice(0, separatorIndex).trim();
-      const value = chunk.slice(separatorIndex + 1).trim();
+      const rawValue = chunk.slice(separatorIndex + 1).trim();
 
-      if (!name || !value) {
+      if (!name || !rawValue) {
         return null;
+      }
+
+      // Decode URL-encoded cookie values so that response.cookies.set()
+      // doesn't double-encode them (e.g. %2B → %252B).
+      let value: string;
+      try {
+        value = decodeURIComponent(rawValue);
+      } catch {
+        value = rawValue;
       }
 
       return { name, value };
@@ -84,15 +84,6 @@ function getDontRememberCookieCandidates() {
   return ["__Secure-better-auth.dont_remember", "better-auth.dont_remember"];
 }
 
-function isAbsoluteHttpUrl(value: string) {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
   "OAuthHandoffService",
   {
@@ -102,47 +93,50 @@ export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
 
       const createHandoff = Effect.fn("OAuthHandoffService.createHandoff")(
         ({
-          returnTo,
-          openerOrigin,
+          targetOrigin,
           authState,
+          next,
           authType,
           oid,
           cookieHeader,
+          log,
         }: {
-          returnTo: string;
-          openerOrigin: string | null;
+          targetOrigin: string;
           authState: string | null;
+          next: string | null;
           authType: string | null;
           oid: string | null;
           cookieHeader: string | null;
+          log: AxiomLogger;
         }) =>
           Effect.gen(function* () {
-            const safeReturnTo = yield* readSafeRedirect(returnTo);
-            if (!safeReturnTo || !isAbsoluteHttpUrl(safeReturnTo)) {
-              return yield* new OAuthHandoffInvalidInput({
-                message: "returnTo must be an allowed absolute URL",
-              });
-            }
+            const safeTargetOrigin = yield* readSafeOrigin(targetOrigin);
 
-            const parsedReturnTo = new URL(safeReturnTo);
-            const safeTargetOrigin = yield* readSafeOrigin(
-              parsedReturnTo.origin,
-            );
+            log.debug("service.createHandoff", {
+              targetOrigin,
+              safeTargetOrigin,
+              allowed: Boolean(safeTargetOrigin),
+            });
+
             if (!safeTargetOrigin) {
               return yield* new OAuthHandoffForbidden({
                 message: "Target origin is not allowed",
               });
             }
 
-            const safeOpenerOrigin = openerOrigin
-              ? yield* readSafeOrigin(openerOrigin)
-              : null;
-
             const cookies = parseCookies(cookieHeader);
             const sessionCookie = findCookie(
               cookies,
               getSessionCookieCandidates(),
             );
+
+            log.debug("service.cookieScan", {
+              cookieCount: cookies.length,
+              cookieNames: cookies.map((c) => c.name),
+              sessionCookieFound: Boolean(sessionCookie),
+              sessionCookieName: sessionCookie?.name || null,
+            });
+
             if (!sessionCookie) {
               return yield* new OAuthHandoffUnauthorized({});
             }
@@ -156,8 +150,8 @@ export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
               ttlSeconds: HANDOFF_TTL_SECONDS,
               payload: {
                 targetOrigin: safeTargetOrigin,
-                returnTo: safeReturnTo,
-                openerOrigin: safeOpenerOrigin,
+                returnTo: next || "/",
+                openerOrigin: safeTargetOrigin,
                 authState,
                 authType,
                 oid,
@@ -168,8 +162,14 @@ export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
               },
             });
 
+            log.info("service.codeCreated", {
+              codePrefix: code.slice(0, 8),
+              targetOrigin: safeTargetOrigin,
+              ttl: HANDOFF_TTL_SECONDS,
+            });
+
             const handoffUrl = new URL(
-              "/api/auth/oauth-handoff/exchange",
+              "/api/auth/session-transfer/complete",
               safeTargetOrigin,
             );
             handoffUrl.searchParams.set("code", code);
@@ -181,9 +181,25 @@ export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
       );
 
       const consumeHandoff = Effect.fn("OAuthHandoffService.consumeHandoff")(
-        ({ code, currentOrigin }: { code: string; currentOrigin: string }) =>
+        ({
+          code,
+          currentOrigin,
+          log,
+        }: {
+          code: string;
+          currentOrigin: string;
+          log: AxiomLogger;
+        }) =>
           Effect.gen(function* () {
             const safeCurrentOrigin = yield* readSafeOrigin(currentOrigin);
+
+            log.debug("service.consumeHandoff", {
+              codePrefix: code.slice(0, 8),
+              currentOrigin,
+              safeCurrentOrigin,
+              allowed: Boolean(safeCurrentOrigin),
+            });
+
             if (!safeCurrentOrigin) {
               return yield* new OAuthHandoffForbidden({
                 message: "Current origin is not allowed",
@@ -192,7 +208,30 @@ export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
 
             const handoff = yield* repository.consumeCode({ code });
 
-            if (handoff.targetOrigin !== safeCurrentOrigin) {
+            log.debug("service.consumedPayload", {
+              codePrefix: code.slice(0, 8),
+              payloadKeys: Object.keys(handoff),
+              targetOrigin: handoff.targetOrigin,
+              openerOrigin: handoff.openerOrigin,
+              returnTo: handoff.returnTo,
+              sessionCookieName: handoff.sessionCookieName,
+              hasSessionValue: Boolean(handoff.sessionCookieValue),
+              sessionValueLen: handoff.sessionCookieValue?.length || 0,
+              authState: handoff.authState
+                ? handoff.authState.slice(0, 8) + "..."
+                : null,
+            });
+
+            const originMatch = handoff.targetOrigin === safeCurrentOrigin;
+
+            log.debug("service.originCheck", {
+              codePrefix: code.slice(0, 8),
+              targetOrigin: handoff.targetOrigin,
+              safeCurrentOrigin,
+              originMatch,
+            });
+
+            if (!originMatch) {
               return yield* new OAuthHandoffForbidden({
                 message: "Handoff code does not match this origin",
               });
@@ -200,7 +239,6 @@ export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
 
             const loadingUrl = new URL("/oauth/loading", handoff.targetOrigin);
             loadingUrl.searchParams.set("returnTo", handoff.returnTo);
-            loadingUrl.searchParams.set("handoff", "1");
             if (handoff.openerOrigin) {
               loadingUrl.searchParams.set("openerOrigin", handoff.openerOrigin);
             }

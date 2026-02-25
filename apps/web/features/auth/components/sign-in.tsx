@@ -75,47 +75,67 @@ export function SignIn({
   useEffect(() => {
     const authRootOrigin = getAuthRootOrigin();
     const trustedOrigins = new Set([window.location.origin, authRootOrigin]);
-    const isDev = process.env.NODE_ENV !== "production";
 
-    function logRejected(reason: string, event: MessageEvent) {
-      if (!isDev) {
-        return;
-      }
-
-      console.debug("[auth-popup] Ignored auth completion", {
-        reason,
-        origin: event.origin,
-        data: event.data,
-      });
-    }
+    console.info("[oauth] sign-in.listener.init", {
+      currentOrigin: window.location.origin,
+      authRootOrigin,
+      trustedOrigins: Array.from(trustedOrigins),
+    });
 
     function handleAuthComplete(event: MessageEvent) {
-      if (!trustedOrigins.has(event.origin)) {
-        logRejected("untrusted-origin", event);
-        return;
-      }
-
       const payload = event.data as {
         type?: string;
         refreshOnly?: boolean;
         authState?: string;
       } | null;
 
+      // Skip non-auth messages silently
       if (payload?.type !== "runbase-auth-complete") {
-        logRejected("invalid-type", event);
+        return;
+      }
+
+      console.info("[oauth] sign-in.message_received", {
+        eventOrigin: event.origin,
+        isTrusted: trustedOrigins.has(event.origin),
+        payloadType: payload.type,
+        refreshOnly: payload.refreshOnly,
+        authStatePrefix: payload.authState
+          ? payload.authState.slice(0, 8) + "..."
+          : null,
+      });
+
+      if (!trustedOrigins.has(event.origin)) {
+        console.warn("[oauth] sign-in.rejected", {
+          reason: "untrusted-origin",
+          eventOrigin: event.origin,
+          trustedOrigins: Array.from(trustedOrigins),
+        });
         return;
       }
 
       if (payload.refreshOnly !== true) {
-        logRejected("refresh-flag-missing", event);
+        console.warn("[oauth] sign-in.rejected", {
+          reason: "refresh-flag-missing",
+        });
         return;
       }
 
-      if (!consumePendingPopupAuthState(payload.authState)) {
-        logRejected("auth-state-mismatch", event);
+      const authStateMatch = consumePendingPopupAuthState(payload.authState);
+      console.info("[oauth] sign-in.authState_check", {
+        match: authStateMatch,
+        receivedPrefix: payload.authState
+          ? payload.authState.slice(0, 8) + "..."
+          : null,
+      });
+
+      if (!authStateMatch) {
+        console.warn("[oauth] sign-in.rejected", {
+          reason: "auth-state-mismatch",
+        });
         return;
       }
 
+      console.info("[oauth] sign-in.success — calling router.refresh()");
       router.refresh();
     }
 

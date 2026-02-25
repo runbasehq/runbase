@@ -3,6 +3,8 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { lastLoginMethod } from "better-auth/plugins";
 
+import { isVerifiedCustomDomain } from "~/domains/lib/verified-domain-lookup.server";
+
 import { db } from "./db/index";
 import * as schema from "./db/schema";
 import { rootDomain } from "./utils";
@@ -46,11 +48,22 @@ export const auth = betterAuth({
   appName: "Runbase",
   baseURL: betterAuthUrl,
   secret: betterAuthSecret,
-  trustedOrigins: [
-    betterAuthUrl,
-    `${authUrlProtocol}://${rootDomain}`,
-    `${authUrlProtocol}://*.${rootDomain}`,
-  ],
+  trustedOrigins: async (request) => {
+    const staticOrigins = [
+      betterAuthUrl,
+      `${authUrlProtocol}://${rootDomain}`,
+      `${authUrlProtocol}://*.${rootDomain}`,
+    ];
+    const origin = request?.headers.get("origin");
+    if (!origin) return staticOrigins;
+    try {
+      const hostname = new URL(origin).hostname;
+      if (await isVerifiedCustomDomain(hostname)) {
+        return [...staticOrigins, origin];
+      }
+    } catch {}
+    return staticOrigins;
+  },
   experimental: {
     joins: true,
   },
