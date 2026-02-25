@@ -88,8 +88,7 @@ export async function GET(request: NextRequest) {
     }),
   );
 
-  const response = await appRuntime.runPromise(
+  return await appRuntime.runPromise(
     program as Effect.Effect<NextResponse, never, never>,
   );
-  return response as NextResponse;
 }

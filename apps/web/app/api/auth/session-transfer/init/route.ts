@@ -7,48 +7,41 @@ import {
   handleOAuthHandoffError,
   type OAuthHandoffRouteError,
 } from "~/oauth-handoff/oauth-handoff.errors";
-import { decodeOAuthHandoffStartInput } from "~/oauth-handoff/oauth-handoff.schema";
+import { decodeSessionTransferInitInput } from "~/oauth-handoff/oauth-handoff.schema";
 import { OAuthHandoffService } from "~/oauth-handoff/oauth-handoff.service";
 
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: "Invalid request body" },
-      { status: 400 },
+    return NextResponse.redirect(
+      new URL("/sign-in?error=no_session", request.url),
     );
   }
 
   const cookieHeader = request.headers.get("cookie");
 
   const program = Effect.gen(function* () {
-    const input = yield* decodeOAuthHandoffStartInput(rawBody);
+    const input = yield* decodeSessionTransferInitInput(
+      request.nextUrl.searchParams,
+    );
 
     return yield* OAuthHandoffService.createHandoff({
-      returnTo: input.returnTo,
-      openerOrigin: input.openerOrigin,
+      targetOrigin: input.targetOrigin,
       authState: input.authState,
+      next: input.next,
       authType: input.authType,
       oid: input.oid,
       cookieHeader,
     });
   }).pipe(
     Effect.match({
-      onSuccess: ({ handoffUrl }) => NextResponse.json({ handoffUrl }),
+      onSuccess: ({ handoffUrl }) => NextResponse.redirect(handoffUrl),
       onFailure: (error) =>
         handleOAuthHandoffError(error as OAuthHandoffRouteError),
     }),
   );
 
-  const response = await appRuntime.runPromise(
+  return await appRuntime.runPromise(
     program as Effect.Effect<NextResponse, never, never>,
   );
-  return response as NextResponse;
 }

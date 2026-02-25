@@ -2,22 +2,14 @@ import { Effect, Schema } from "effect";
 
 import { OAuthHandoffInvalidInput } from "./oauth-handoff.errors";
 
-const OAuthHandoffStartBodySchema = Schema.Struct({
-  returnTo: Schema.String,
-  openerOrigin: Schema.optional(Schema.NullOr(Schema.String)),
-  authState: Schema.optional(Schema.NullOr(Schema.String)),
-  type: Schema.optional(Schema.NullOr(Schema.String)),
-  oid: Schema.optional(Schema.NullOr(Schema.String)),
-});
-
 const OAuthHandoffExchangeQuerySchema = Schema.Struct({
   code: Schema.String,
 });
 
-export interface OAuthHandoffStartInput {
-  returnTo: string;
-  openerOrigin: string | null;
+export interface OAuthHandoffSessionTransferInitInput {
+  targetOrigin: string;
   authState: string | null;
+  next: string | null;
   authType: string | null;
   oid: string | null;
 }
@@ -26,35 +18,23 @@ export interface OAuthHandoffExchangeInput {
   code: string;
 }
 
-function normalizeOptionalString(value: string | null | undefined) {
-  if (!value) {
-    return null;
-  }
-
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : null;
-}
-
-export const decodeOAuthHandoffStartInput = (raw: unknown) =>
+export const decodeSessionTransferInitInput = (params: URLSearchParams) =>
   Effect.gen(function* () {
-    const decoded = yield* Schema.decodeUnknown(OAuthHandoffStartBodySchema)(
-      raw,
-    );
-    const returnTo = decoded.returnTo.trim();
+    const target = params.get("target")?.trim() || "";
 
-    if (!returnTo) {
+    if (!target) {
       return yield* new OAuthHandoffInvalidInput({
-        message: "returnTo is required",
+        message: "target is required",
       });
     }
 
     return {
-      returnTo,
-      openerOrigin: normalizeOptionalString(decoded.openerOrigin),
-      authState: normalizeOptionalString(decoded.authState),
-      authType: normalizeOptionalString(decoded.type),
-      oid: normalizeOptionalString(decoded.oid),
-    } satisfies OAuthHandoffStartInput;
+      targetOrigin: target,
+      authState: params.get("authState")?.trim() || null,
+      next: params.get("next")?.trim() || null,
+      authType: params.get("type")?.trim() || null,
+      oid: params.get("oid")?.trim() || null,
+    } satisfies OAuthHandoffSessionTransferInitInput;
   });
 
 export const decodeOAuthHandoffExchangeInput = (raw: unknown) =>

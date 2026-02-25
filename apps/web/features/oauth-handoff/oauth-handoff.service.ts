@@ -2,25 +2,15 @@ import "server-only";
 
 import { Effect } from "effect";
 
-import {
-  getSafeServerAuthRedirect,
-  getSafeServerOrigin,
-} from "~/auth/lib/safe-auth-redirect.server";
+import { getSafeServerOrigin } from "~/auth/lib/safe-auth-redirect.server";
 
 import {
   OAuthHandoffForbidden,
-  OAuthHandoffInvalidInput,
   OAuthHandoffUnauthorized,
 } from "./oauth-handoff.errors";
 import { OAuthHandoffRepository } from "./oauth-handoff.repository";
 
 const HANDOFF_TTL_SECONDS = 60;
-
-const readSafeRedirect = (target: string | null | undefined) =>
-  Effect.tryPromise({
-    try: () => getSafeServerAuthRedirect(target),
-    catch: () => null,
-  });
 
 const readSafeOrigin = (origin: string | null | undefined) =>
   Effect.tryPromise({
@@ -84,15 +74,6 @@ function getDontRememberCookieCandidates() {
   return ["__Secure-better-auth.dont_remember", "better-auth.dont_remember"];
 }
 
-function isAbsoluteHttpUrl(value: string) {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
   "OAuthHandoffService",
   {
@@ -102,41 +83,27 @@ export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
 
       const createHandoff = Effect.fn("OAuthHandoffService.createHandoff")(
         ({
-          returnTo,
-          openerOrigin,
+          targetOrigin,
           authState,
+          next,
           authType,
           oid,
           cookieHeader,
         }: {
-          returnTo: string;
-          openerOrigin: string | null;
+          targetOrigin: string;
           authState: string | null;
+          next: string | null;
           authType: string | null;
           oid: string | null;
           cookieHeader: string | null;
         }) =>
           Effect.gen(function* () {
-            const safeReturnTo = yield* readSafeRedirect(returnTo);
-            if (!safeReturnTo || !isAbsoluteHttpUrl(safeReturnTo)) {
-              return yield* new OAuthHandoffInvalidInput({
-                message: "returnTo must be an allowed absolute URL",
-              });
-            }
-
-            const parsedReturnTo = new URL(safeReturnTo);
-            const safeTargetOrigin = yield* readSafeOrigin(
-              parsedReturnTo.origin,
-            );
+            const safeTargetOrigin = yield* readSafeOrigin(targetOrigin);
             if (!safeTargetOrigin) {
               return yield* new OAuthHandoffForbidden({
                 message: "Target origin is not allowed",
               });
             }
-
-            const safeOpenerOrigin = openerOrigin
-              ? yield* readSafeOrigin(openerOrigin)
-              : null;
 
             const cookies = parseCookies(cookieHeader);
             const sessionCookie = findCookie(
@@ -156,8 +123,8 @@ export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
               ttlSeconds: HANDOFF_TTL_SECONDS,
               payload: {
                 targetOrigin: safeTargetOrigin,
-                returnTo: safeReturnTo,
-                openerOrigin: safeOpenerOrigin,
+                returnTo: next || "/",
+                openerOrigin: safeTargetOrigin,
                 authState,
                 authType,
                 oid,
@@ -169,7 +136,7 @@ export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
             });
 
             const handoffUrl = new URL(
-              "/api/auth/oauth-handoff/exchange",
+              "/api/auth/session-transfer/complete",
               safeTargetOrigin,
             );
             handoffUrl.searchParams.set("code", code);
@@ -200,7 +167,6 @@ export class OAuthHandoffService extends Effect.Service<OAuthHandoffService>()(
 
             const loadingUrl = new URL("/oauth/loading", handoff.targetOrigin);
             loadingUrl.searchParams.set("returnTo", handoff.returnTo);
-            loadingUrl.searchParams.set("handoff", "1");
             if (handoff.openerOrigin) {
               loadingUrl.searchParams.set("openerOrigin", handoff.openerOrigin);
             }

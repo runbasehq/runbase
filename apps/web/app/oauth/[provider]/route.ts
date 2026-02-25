@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getAuthRootOrigin } from "~/auth/lib/get-auth-root-origin";
 import {
-  getPreferredWorkspaceOrigin,
   getSafeServerAuthRedirect,
   getSafeServerOrigin,
-  getWorkspaceSlugFromAllowedOrigin,
 } from "~/auth/lib/safe-auth-redirect.server";
 import { isAbsoluteUrl } from "~/auth/lib/url";
 
@@ -56,116 +54,63 @@ export async function GET(
   }
 
   const authRootOrigin = getAuthRootOrigin();
+  const openerOriginParam = request.nextUrl.searchParams.get("openerOrigin");
+  const authStateParam = request.nextUrl.searchParams.get("authState");
   const nextParam = request.nextUrl.searchParams.get("next");
   const returnToParam = request.nextUrl.searchParams.get("returnTo");
   const typeParam = request.nextUrl.searchParams.get("type");
   const oidParam = request.nextUrl.searchParams.get("oid");
-  const authStateParam = request.nextUrl.searchParams.get("authState");
-  const openerOriginParam = request.nextUrl.searchParams.get("openerOrigin");
 
   const safeOpenerOrigin = await getSafeServerOrigin(openerOriginParam);
-  const safeReturnTo = await getSafeServerAuthRedirect(returnToParam);
-  const safeNext = await getSafeServerAuthRedirect(nextParam);
-  const effectiveReturnTo = safeReturnTo || safeNext || "/";
+  if (!safeOpenerOrigin) {
+    return NextResponse.redirect(new URL("/sign-in", authRootOrigin));
+  }
 
-  const openerWorkspaceSlug =
-    await getWorkspaceSlugFromAllowedOrigin(safeOpenerOrigin);
-  const targetWorkspaceSlug =
-    openerWorkspaceSlug ||
-    (isAbsoluteUrl(effectiveReturnTo)
-      ? await getWorkspaceSlugFromAllowedOrigin(effectiveReturnTo)
-      : null);
-  const preferredWorkspaceOrigin = targetWorkspaceSlug
-    ? await getPreferredWorkspaceOrigin(targetWorkspaceSlug)
-    : null;
+  const safeNext = await getSafeServerAuthRedirect(returnToParam || nextParam);
+  const effectiveNext = safeNext || "/";
 
-  const absoluteReturnTo = isAbsoluteUrl(effectiveReturnTo)
-    ? (() => {
-        const parsed = new URL(effectiveReturnTo);
-        if (!preferredWorkspaceOrigin) {
-          return parsed.toString();
-        }
-
-        return new URL(
-          `${parsed.pathname}${parsed.search}${parsed.hash}`,
-          preferredWorkspaceOrigin,
-        ).toString();
-      })()
-    : new URL(
-        effectiveReturnTo,
-        preferredWorkspaceOrigin || safeOpenerOrigin || authRootOrigin,
-      ).toString();
-
-  const fallbackOpenerOrigin = (() => {
-    try {
-      return new URL(absoluteReturnTo).origin;
-    } catch {
-      return null;
-    }
-  })();
-  const resolvedOpenerOrigin = safeOpenerOrigin || fallbackOpenerOrigin;
-
-  const finalLoadingOrigin =
-    resolvedOpenerOrigin || preferredWorkspaceOrigin || authRootOrigin;
-  const finalLoadingUrl = new URL("/oauth/loading", finalLoadingOrigin);
-  finalLoadingUrl.searchParams.set("returnTo", absoluteReturnTo);
+  // Build session-transfer/init URL as the callbackURL for better-auth.
+  // After OAuth completes, better-auth redirects the popup here (on root domain).
+  const initUrl = new URL("/api/auth/session-transfer/init", authRootOrigin);
+  initUrl.searchParams.set("target", safeOpenerOrigin);
   if (authStateParam) {
-    finalLoadingUrl.searchParams.set("authState", authStateParam);
+    initUrl.searchParams.set("authState", authStateParam);
   }
-  if (resolvedOpenerOrigin) {
-    finalLoadingUrl.searchParams.set("openerOrigin", resolvedOpenerOrigin);
-  }
+  initUrl.searchParams.set("next", effectiveNext);
   if (typeParam) {
-    finalLoadingUrl.searchParams.set("type", typeParam);
+    initUrl.searchParams.set("type", typeParam);
   }
   if (oidParam) {
-    finalLoadingUrl.searchParams.set("oid", oidParam);
+    initUrl.searchParams.set("oid", oidParam);
   }
 
-  const callbackUrl = new URL("/oauth/loading", authRootOrigin);
-  callbackUrl.searchParams.set("returnTo", finalLoadingUrl.toString());
-  callbackUrl.searchParams.set("next", absoluteReturnTo);
-  if (typeParam) {
-    callbackUrl.searchParams.set("type", typeParam);
-  }
-  if (oidParam) {
-    callbackUrl.searchParams.set("oid", oidParam);
-  }
-  if (authStateParam) {
-    callbackUrl.searchParams.set("authState", authStateParam);
-  }
-  if (resolvedOpenerOrigin) {
-    callbackUrl.searchParams.set("openerOrigin", resolvedOpenerOrigin);
-  }
-
+  // Server-side signIn.social to get provider redirect URL
   const authStartUrl = new URL("/api/auth/sign-in/social", authRootOrigin);
-  const brokerReferer = new URL(
-    `/oauth/${provider}`,
-    authRootOrigin,
-  ).toString();
   const incomingCookies = request.headers.get("cookie");
+
   const startResponse = await fetch(authStartUrl, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       origin: authRootOrigin,
-      referer: brokerReferer,
+      referer: `${authRootOrigin}/oauth/${provider}`,
       ...(incomingCookies ? { cookie: incomingCookies } : {}),
     },
     body: JSON.stringify({
       provider,
-      callbackURL: callbackUrl.toString(),
+      callbackURL: initUrl.toString(),
       disableRedirect: true,
     }),
     redirect: "manual",
   });
 
   if (startResponse.status >= 400) {
-    callbackUrl.searchParams.set("error", "auth_start_failed");
-    callbackUrl.searchParams.set("status", String(startResponse.status));
-    return NextResponse.redirect(callbackUrl);
+    return NextResponse.redirect(
+      new URL("/sign-in?error=auth_start_failed", authRootOrigin),
+    );
   }
 
+  // Extract provider URL from response
   const redirectLocation = startResponse.headers.get("location");
   const payload = (await startResponse.json().catch(() => null)) as unknown;
   const providerUrl =
@@ -175,42 +120,31 @@ export async function GET(
       : null);
 
   if (!providerUrl) {
-    callbackUrl.searchParams.set("error", "provider_url_missing");
-    return NextResponse.redirect(callbackUrl);
+    return NextResponse.redirect(
+      new URL("/sign-in?error=provider_url_missing", authRootOrigin),
+    );
   }
 
+  // Redirect popup to provider, forwarding set-cookie headers (OAuth state cookie)
   const response = NextResponse.redirect(
     toAbsoluteProviderUrl(providerUrl, authRootOrigin),
   );
-  let setCookies =
+
+  const setCookies =
     (
       startResponse.headers as Headers & {
         getSetCookie?: () => string[];
       }
     ).getSetCookie?.() || [];
 
-  if (!setCookies.length) {
-    const rawCookies = (
-      startResponse.headers as Headers & {
-        raw?: () => Record<string, string[] | undefined>;
-      }
-    ).raw?.()["set-cookie"];
-
-    if (Array.isArray(rawCookies) && rawCookies.length) {
-      setCookies = rawCookies;
-    }
-  }
-
-  if (!setCookies.length) {
-    const rawSetCookie = startResponse.headers.get("set-cookie");
-    if (rawSetCookie) {
-      setCookies = [rawSetCookie];
-    }
-  }
-
   if (setCookies.length) {
     for (const cookie of setCookies) {
       response.headers.append("set-cookie", cookie);
+    }
+  } else {
+    const rawSetCookie = startResponse.headers.get("set-cookie");
+    if (rawSetCookie) {
+      response.headers.set("set-cookie", rawSetCookie);
     }
   }
 
