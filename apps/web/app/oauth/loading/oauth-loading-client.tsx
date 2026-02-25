@@ -38,71 +38,85 @@ export function OAuthLoadingClient({
       visibleCookieCount: visibleCookieNames.length,
     });
 
-    if (window.opener && !window.opener.closed) {
-      const payload = {
-        type: "runbase-auth-complete",
-        refreshOnly: true,
-        returnTo,
-        ...(authState ? { authState } : {}),
-        ...(authType ? { authType } : {}),
-        ...(oid ? { oid } : {}),
-      };
+    // TODO: remove — 10s pause so we can read console logs in the popup tab
+    const debugDelay = new Promise<void>((resolve) => {
+      console.info(
+        "[oauth] loading.debug_delay — waiting 10s before continuing...",
+      );
+      setTimeout(resolve, 10_000);
+    });
 
-      const targetOrigin = openerOrigin || "*";
+    void debugDelay.then(() => {
+      continueFlow();
+    });
 
-      console.info("[oauth] loading.postMessage", {
-        targetOrigin,
-        payloadType: payload.type,
-        payloadKeys: Object.keys(payload),
-      });
+    function continueFlow() {
+      if (window.opener && !window.opener.closed) {
+        const payload = {
+          type: "runbase-auth-complete",
+          refreshOnly: true,
+          returnTo,
+          ...(authState ? { authState } : {}),
+          ...(authType ? { authType } : {}),
+          ...(oid ? { oid } : {}),
+        };
 
-      try {
-        window.opener.postMessage(payload, targetOrigin);
-        console.info("[oauth] loading.postMessage.sent", { targetOrigin });
-      } catch (err) {
-        console.warn("[oauth] loading.postMessage.error", {
+        const targetOrigin = openerOrigin || "*";
+
+        console.info("[oauth] loading.postMessage", {
           targetOrigin,
-          error: err instanceof Error ? err.message : String(err),
+          payloadType: payload.type,
+          payloadKeys: Object.keys(payload),
         });
-        if (openerOrigin) {
-          try {
-            window.opener.postMessage(payload, "*");
-            console.info("[oauth] loading.postMessage.fallback_sent");
-          } catch {
-            // ignore and continue fallback navigation
+
+        try {
+          window.opener.postMessage(payload, targetOrigin);
+          console.info("[oauth] loading.postMessage.sent", { targetOrigin });
+        } catch (err) {
+          console.warn("[oauth] loading.postMessage.error", {
+            targetOrigin,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          if (openerOrigin) {
+            try {
+              window.opener.postMessage(payload, "*");
+              console.info("[oauth] loading.postMessage.fallback_sent");
+            } catch {
+              // ignore and continue fallback navigation
+            }
           }
         }
+
+        window.close();
+
+        window.setTimeout(() => {
+          if (window.closed) {
+            return;
+          }
+
+          console.info("[oauth] loading.close_failed_fallback", { returnTo });
+
+          if (isAbsoluteUrl(returnTo)) {
+            window.location.assign(returnTo);
+            return;
+          }
+
+          window.location.replace(returnTo);
+        }, 150);
+
+        return;
       }
 
-      window.close();
+      // No opener — navigate directly
+      console.info("[oauth] loading.no_opener", { returnTo });
 
-      window.setTimeout(() => {
-        if (window.closed) {
-          return;
-        }
+      if (isAbsoluteUrl(returnTo)) {
+        window.location.assign(returnTo);
+        return;
+      }
 
-        console.info("[oauth] loading.close_failed_fallback", { returnTo });
-
-        if (isAbsoluteUrl(returnTo)) {
-          window.location.assign(returnTo);
-          return;
-        }
-
-        window.location.replace(returnTo);
-      }, 150);
-
-      return;
-    }
-
-    // No opener — navigate directly
-    console.info("[oauth] loading.no_opener", { returnTo });
-
-    if (isAbsoluteUrl(returnTo)) {
-      window.location.assign(returnTo);
-      return;
-    }
-
-    window.location.replace(returnTo);
+      window.location.replace(returnTo);
+    } // end continueFlow
   }, [authState, authType, oid, openerOrigin, returnTo]);
 
   return <main className="min-h-screen bg-background" aria-hidden />;
