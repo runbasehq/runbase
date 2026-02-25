@@ -6,7 +6,6 @@ import { resolveWorkspaceSlugFromHeaders } from "~/domains/lib/host-routing";
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const workspaceSlug = await resolveWorkspaceSlugFromHeaders(request.headers);
-  const isLoadingPath = pathname === "/loading" || pathname === "/loading/";
   const isOAuthLoadingPath =
     pathname === "/oauth/loading" || pathname === "/oauth/loading/";
   const isOAuthProviderPath =
@@ -15,10 +14,6 @@ export async function proxy(request: NextRequest) {
   if (workspaceSlug) {
     if (pathname.startsWith("/admin")) {
       return NextResponse.redirect(`${protocol}://${rootDomain}`);
-    }
-
-    if (isLoadingPath) {
-      return NextResponse.next();
     }
 
     if (isOAuthLoadingPath) {
