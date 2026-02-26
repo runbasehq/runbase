@@ -77,6 +77,13 @@ export const feedbackNavItems: DashboardNavItem[] = [
     icon: IconMap,
     label: "Changelog",
   },
+  {
+    id: "roadmap",
+    href: "/dashboard/roadmap",
+    iconType: "svg",
+    icon: IconMap,
+    label: "Roadmap",
+  },
 ];
 
 export const quickNavItems: DashboardNavItem[] = [
