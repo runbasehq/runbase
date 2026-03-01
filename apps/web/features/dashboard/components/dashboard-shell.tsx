@@ -4,9 +4,11 @@ import { Menu01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { DashboardSidebar } from "~/dashboard/components/dashboard-sidebar";
+import { SettingsSidebar } from "~/dashboard/components/settings-sidebar";
 
 export interface DashboardWorkspaceOption {
   connectedDomain?: string | null;
@@ -41,6 +43,11 @@ function DashboardShellRoot({
   user,
 }: DashboardShellProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const pathname = usePathname();
+  const normalizedPath = pathname.replace(/^\/s\/[^/]+/, "");
+  const isSettingsRoute =
+    normalizedPath === "/dashboard/settings" ||
+    normalizedPath.startsWith("/dashboard/settings/");
 
   return (
     <div
@@ -48,12 +55,16 @@ function DashboardShellRoot({
       data-ui-theme="agency-dashboard"
     >
       <div className="flex h-full overflow-hidden">
-        <DashboardSidebar
-          className="hidden md:block"
-          organizationName={organizationName}
-          workspaces={workspaces}
-          user={user}
-        />
+        {isSettingsRoute ? (
+          <SettingsSidebar className="hidden md:block" />
+        ) : (
+          <DashboardSidebar
+            className="hidden md:block"
+            organizationName={organizationName}
+            workspaces={workspaces}
+            user={user}
+          />
+        )}
 
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
           <header className="sticky top-0 z-20 flex h-14 items-center border-b border-(--border) bg-(--bg)/95 px-4 backdrop-blur md:hidden">
@@ -95,13 +106,20 @@ function DashboardShellRoot({
               exit={{ x: -28, opacity: 0 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
             >
-              <DashboardSidebar
-                className="h-full"
-                onNavigate={() => setMobileSidebarOpen(false)}
-                organizationName={organizationName}
-                workspaces={workspaces}
-                user={user}
-              />
+              {isSettingsRoute ? (
+                <SettingsSidebar
+                  className="h-full"
+                  onNavigate={() => setMobileSidebarOpen(false)}
+                />
+              ) : (
+                <DashboardSidebar
+                  className="h-full"
+                  onNavigate={() => setMobileSidebarOpen(false)}
+                  organizationName={organizationName}
+                  workspaces={workspaces}
+                  user={user}
+                />
+              )}
             </motion.div>
           </>
         ) : null}

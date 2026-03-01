@@ -1,29 +1,6 @@
 import Link from "next/link";
 
-import { IconGlobe } from "@/components/icons/icon-globe";
-import { IconPeople } from "@/components/icons/icon-people";
-import { IconRoadmap } from "@/components/icons/icon-roadmap";
-
-const settingsItems = [
-  {
-    href: "/dashboard/settings/custom-domain",
-    title: "Custom domain",
-    description: "Connect and verify your domain.",
-    icon: IconGlobe,
-  },
-  {
-    href: "/dashboard/settings/team",
-    title: "Team",
-    description: "Invite members and manage permissions.",
-    icon: IconPeople,
-  },
-  {
-    href: "/dashboard/settings/feedback-roadmap",
-    title: "Feedback & roadmap",
-    description: "Manage tags, boards, statuses, and public board behavior.",
-    icon: IconRoadmap,
-  },
-];
+import { settingsNavGroups } from "~/dashboard/lib/settings-nav";
 
 export default function DashboardSettingsPage() {
   return (
@@ -40,19 +17,30 @@ export default function DashboardSettingsPage() {
         </p>
       </div>
 
-      <div className="grid w-full max-w-4xl gap-3 md:grid-cols-2">
-        {settingsItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="rounded-(--r-md) border border-(--border) bg-(--surface) p-4 transition-colors hover:border-(--text)/20 hover:bg-black/2"
-          >
-            <item.icon className="size-5 text-(--text)" />
-            <p className="mt-3 text-sm font-semibold text-(--text)">
-              {item.title}
+      <div className="w-full max-w-4xl space-y-7">
+        {settingsNavGroups.map((group) => (
+          <section key={group.id}>
+            <p className="px-1 text-xs font-medium text-(--muted)">
+              {group.label}
             </p>
-            <p className="mt-1 text-sm text-(--muted)">{item.description}</p>
-          </Link>
+            <div className="mt-2 grid gap-3 md:grid-cols-2">
+              {group.items.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="rounded-(--r-md) border border-(--border) bg-(--surface) p-4 transition-colors hover:border-(--text)/20 hover:bg-black/2"
+                >
+                  <item.icon className="size-5 text-(--text)" />
+                  <p className="mt-3 text-sm font-semibold text-(--text)">
+                    {item.label}
+                  </p>
+                  <p className="mt-1 text-sm text-(--muted)">
+                    {item.description}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
     </section>
