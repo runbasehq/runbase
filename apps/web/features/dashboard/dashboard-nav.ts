@@ -1,6 +1,7 @@
 import type { ComponentType, SVGProps } from "react";
 
 import { IconAssistant } from "@/components/icons/icon-assistant";
+import { IconBookBookmark } from "@/components/icons/icon-book-bookmark";
 import { IconHelp } from "@/components/icons/icon-help";
 import { IconInbox } from "@/components/icons/icon-inbox";
 import { IconMap } from "@/components/icons/icon-map";
@@ -74,7 +75,7 @@ export const feedbackNavItems: DashboardNavItem[] = [
     id: "changelog",
     href: "/dashboard/changelog",
     iconType: "svg",
-    icon: IconMap,
+    icon: IconBookBookmark,
     label: "Changelog",
   },
   {
